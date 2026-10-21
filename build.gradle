@@ -1,0 +1,51 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+group = 'com.aresstack'
+version = providers.gradleProperty('releaseVersion').orElse('0.1.0-SNAPSHOT').get()
+
+description = 'Framework-neutral OAuth 2.0 security library for Java applications'
+
+repositories {
+    mavenCentral()
+}
+
+java {
+    withSourcesJar()
+    withJavadocJar()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 8
+}
+
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.11.4'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+            artifactId = 'anauthentia'
+            pom {
+                name = 'AnAuthentia'
+                description = project.description
+                url = 'https://github.com/aresstack/anauthentia'
+                scm {
+                    connection = 'scm:git:https://github.com/aresstack/anauthentia.git'
+                    developerConnection = 'scm:git:ssh://git@github.com/aresstack/anauthentia.git'
+                    url = 'https://github.com/aresstack/anauthentia'
+                }
+            }
+        }
+    }
+}
