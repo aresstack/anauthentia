@@ -1,0 +1,181 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2172 724" width="2172" height="724" role="img" aria-labelledby="title desc">
+<title id="title">AnAuthentia — Trust nobody. Verify everything.</title>
+<desc id="desc">Cyberpunk open-source banner with a neon anarchist A, Linux terminal details and a hooded penguin hacker.</desc>
+<defs>
+ <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#020b0b"/><stop offset=".55" stop-color="#03090c"/><stop offset="1" stop-color="#010404"/></linearGradient>
+ <linearGradient id="a" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#40ffa1"/><stop offset=".68" stop-color="#00d7b4"/><stop offset="1" stop-color="#0af7cf"/></linearGradient>
+ <linearGradient id="text" x1="0" x2="0" y1="0" y2="1"><stop stop-color="#f8ffff"/><stop offset=".9" stop-color="#b2cad0"/><stop offset="1" stop-color="#78959a"/></linearGradient>
+ <radialGradient id="ambient"><stop stop-color="#00d79b" stop-opacity=".18"/><stop offset="1" stop-color="#00d79b" stop-opacity="0"/></radialGradient>
+ <pattern id="grid" width="54" height="54" patternUnits="userSpaceOnUse"><path d="M54 0H0V54" fill="none" stroke="#0a8e74" stroke-width=".65" opacity=".21"/></pattern>
+ <pattern id="dots" width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="1.7" cy="1.7" r="1" fill="#20c498" opacity=".16"/></pattern>
+ <filter id="glow"><feGaussianBlur stdDeviation="10"/></filter>
+ <filter id="shadow"><feDropShadow dx="0" dy="10" stdDeviation="9" flood-color="#000" flood-opacity=".8"/></filter>
+</defs>
+<rect width="2172" height="724" fill="url(#bg)"/><rect width="2172" height="724" fill="url(#grid)"/>
+<ellipse cx="1130" cy="310" rx="1200" ry="500" fill="url(#ambient)"/>
+<path d="M0 83H2172 M0 489H2172 M0 534H2172" stroke="#06bd83" stroke-opacity=".12"/>
+<path d="M320 150H1730 M320 481H1730 M320 150V197 M320 433V481 M1730 150V202 M1730 431V481" fill="none" stroke="#19f4aa" stroke-width="2.5" opacity=".75"/>
+<circle cx="97" cy="43" r="2.3" fill="#14f6a3" opacity="0.08"/>
+<circle cx="476" cy="216" r="0.95" fill="#36bfb5" opacity="0.11"/>
+<circle cx="855" cy="389" r="0.95" fill="#36bfb5" opacity="0.13"/>
+<circle cx="1234" cy="562" r="0.95" fill="#14f6a3" opacity="0.16"/>
+<circle cx="1613" cy="11" r="0.95" fill="#36bfb5" opacity="0.18"/>
+<circle cx="1992" cy="184" r="2.3" fill="#36bfb5" opacity="0.21"/>
+<circle cx="199" cy="357" r="0.95" fill="#14f6a3" opacity="0.24"/>
+<circle cx="578" cy="530" r="0.95" fill="#36bfb5" opacity="0.08"/>
+<circle cx="957" cy="703" r="0.95" fill="#36bfb5" opacity="0.11"/>
+<circle cx="1336" cy="152" r="0.95" fill="#14f6a3" opacity="0.13"/>
+<circle cx="1715" cy="325" r="2.3" fill="#36bfb5" opacity="0.16"/>
+<circle cx="2094" cy="498" r="0.95" fill="#36bfb5" opacity="0.18"/>
+<circle cx="301" cy="671" r="0.95" fill="#14f6a3" opacity="0.21"/>
+<circle cx="680" cy="120" r="0.95" fill="#36bfb5" opacity="0.24"/>
+<circle cx="1059" cy="293" r="0.95" fill="#36bfb5" opacity="0.08"/>
+<circle cx="1438" cy="466" r="2.3" fill="#14f6a3" opacity="0.11"/>
+<circle cx="1817" cy="639" r="0.95" fill="#36bfb5" opacity="0.13"/>
+<circle cx="24" cy="88" r="0.95" fill="#36bfb5" opacity="0.16"/>
+<circle cx="403" cy="261" r="0.95" fill="#14f6a3" opacity="0.18"/>
+<circle cx="782" cy="434" r="0.95" fill="#36bfb5" opacity="0.21"/>
+<circle cx="1161" cy="607" r="2.3" fill="#36bfb5" opacity="0.24"/>
+<circle cx="1540" cy="56" r="0.95" fill="#14f6a3" opacity="0.08"/>
+<circle cx="1919" cy="229" r="0.95" fill="#36bfb5" opacity="0.11"/>
+<circle cx="126" cy="402" r="0.95" fill="#36bfb5" opacity="0.13"/>
+<circle cx="505" cy="575" r="0.95" fill="#14f6a3" opacity="0.16"/>
+<circle cx="884" cy="24" r="2.3" fill="#36bfb5" opacity="0.18"/>
+<circle cx="1263" cy="197" r="0.95" fill="#36bfb5" opacity="0.21"/>
+<circle cx="1642" cy="370" r="0.95" fill="#14f6a3" opacity="0.24"/>
+<circle cx="2021" cy="543" r="0.95" fill="#36bfb5" opacity="0.08"/>
+<circle cx="228" cy="716" r="0.95" fill="#36bfb5" opacity="0.11"/>
+<circle cx="607" cy="165" r="2.3" fill="#14f6a3" opacity="0.13"/>
+<circle cx="986" cy="338" r="0.95" fill="#36bfb5" opacity="0.16"/>
+<circle cx="1365" cy="511" r="0.95" fill="#36bfb5" opacity="0.18"/>
+<circle cx="1744" cy="684" r="0.95" fill="#14f6a3" opacity="0.21"/>
+<circle cx="2123" cy="133" r="0.95" fill="#36bfb5" opacity="0.24"/>
+<circle cx="330" cy="306" r="2.3" fill="#36bfb5" opacity="0.08"/>
+<circle cx="709" cy="479" r="0.95" fill="#14f6a3" opacity="0.11"/>
+<circle cx="1088" cy="652" r="0.95" fill="#36bfb5" opacity="0.13"/>
+<circle cx="1467" cy="101" r="0.95" fill="#36bfb5" opacity="0.16"/>
+<circle cx="1846" cy="274" r="0.95" fill="#14f6a3" opacity="0.18"/>
+<circle cx="53" cy="447" r="2.3" fill="#36bfb5" opacity="0.21"/>
+<circle cx="432" cy="620" r="0.95" fill="#36bfb5" opacity="0.24"/>
+<circle cx="811" cy="69" r="0.95" fill="#14f6a3" opacity="0.08"/>
+<circle cx="1190" cy="242" r="0.95" fill="#36bfb5" opacity="0.11"/>
+<circle cx="1569" cy="415" r="0.95" fill="#36bfb5" opacity="0.13"/>
+<circle cx="1948" cy="588" r="2.3" fill="#14f6a3" opacity="0.16"/>
+<circle cx="155" cy="37" r="0.95" fill="#36bfb5" opacity="0.18"/>
+<circle cx="534" cy="210" r="0.95" fill="#36bfb5" opacity="0.21"/>
+<circle cx="913" cy="383" r="0.95" fill="#14f6a3" opacity="0.24"/>
+<circle cx="1292" cy="556" r="0.95" fill="#36bfb5" opacity="0.08"/>
+<circle cx="1671" cy="5" r="2.3" fill="#36bfb5" opacity="0.11"/>
+<circle cx="2050" cy="178" r="0.95" fill="#14f6a3" opacity="0.13"/>
+<circle cx="257" cy="351" r="0.95" fill="#36bfb5" opacity="0.16"/>
+<circle cx="636" cy="524" r="0.95" fill="#36bfb5" opacity="0.18"/>
+<circle cx="1015" cy="697" r="0.95" fill="#14f6a3" opacity="0.21"/>
+<circle cx="1394" cy="146" r="2.3" fill="#36bfb5" opacity="0.24"/>
+<circle cx="1773" cy="319" r="0.95" fill="#36bfb5" opacity="0.08"/>
+<circle cx="2152" cy="492" r="0.95" fill="#14f6a3" opacity="0.11"/>
+<circle cx="359" cy="665" r="0.95" fill="#36bfb5" opacity="0.13"/>
+<circle cx="738" cy="114" r="0.95" fill="#36bfb5" opacity="0.16"/>
+<circle cx="1117" cy="287" r="2.3" fill="#14f6a3" opacity="0.18"/>
+<circle cx="1496" cy="460" r="0.95" fill="#36bfb5" opacity="0.21"/>
+<circle cx="1875" cy="633" r="0.95" fill="#36bfb5" opacity="0.24"/>
+<circle cx="82" cy="82" r="0.95" fill="#14f6a3" opacity="0.08"/>
+<circle cx="461" cy="255" r="0.95" fill="#36bfb5" opacity="0.11"/>
+<circle cx="840" cy="428" r="2.3" fill="#36bfb5" opacity="0.13"/>
+<circle cx="1219" cy="601" r="0.95" fill="#14f6a3" opacity="0.16"/>
+<circle cx="1598" cy="50" r="0.95" fill="#36bfb5" opacity="0.18"/>
+<circle cx="1977" cy="223" r="0.95" fill="#36bfb5" opacity="0.21"/>
+<circle cx="184" cy="396" r="0.95" fill="#14f6a3" opacity="0.24"/>
+<circle cx="563" cy="569" r="2.3" fill="#36bfb5" opacity="0.08"/>
+<circle cx="942" cy="18" r="0.95" fill="#36bfb5" opacity="0.11"/>
+<circle cx="1321" cy="191" r="0.95" fill="#14f6a3" opacity="0.13"/>
+<circle cx="1700" cy="364" r="0.95" fill="#36bfb5" opacity="0.16"/>
+<circle cx="2079" cy="537" r="0.95" fill="#36bfb5" opacity="0.18"/>
+<circle cx="286" cy="710" r="2.3" fill="#14f6a3" opacity="0.21"/>
+<circle cx="665" cy="159" r="0.95" fill="#36bfb5" opacity="0.24"/>
+<circle cx="1044" cy="332" r="0.95" fill="#36bfb5" opacity="0.08"/>
+<circle cx="1423" cy="505" r="0.95" fill="#14f6a3" opacity="0.11"/>
+<circle cx="1802" cy="678" r="0.95" fill="#36bfb5" opacity="0.13"/>
+<circle cx="9" cy="127" r="2.3" fill="#36bfb5" opacity="0.16"/>
+<circle cx="388" cy="300" r="0.95" fill="#14f6a3" opacity="0.18"/>
+<circle cx="767" cy="473" r="0.95" fill="#36bfb5" opacity="0.21"/>
+<circle cx="1146" cy="646" r="0.95" fill="#36bfb5" opacity="0.24"/>
+<circle cx="1525" cy="95" r="0.95" fill="#14f6a3" opacity="0.08"/>
+<circle cx="1904" cy="268" r="2.3" fill="#36bfb5" opacity="0.11"/>
+<circle cx="111" cy="441" r="0.95" fill="#36bfb5" opacity="0.13"/>
+<circle cx="490" cy="614" r="0.95" fill="#14f6a3" opacity="0.16"/>
+<circle cx="869" cy="63" r="0.95" fill="#36bfb5" opacity="0.18"/>
+<circle cx="1248" cy="236" r="0.95" fill="#36bfb5" opacity="0.21"/>
+<circle cx="1627" cy="409" r="2.3" fill="#14f6a3" opacity="0.24"/>
+<circle cx="2006" cy="582" r="0.95" fill="#36bfb5" opacity="0.08"/>
+<circle cx="213" cy="31" r="0.95" fill="#36bfb5" opacity="0.11"/>
+<circle cx="592" cy="204" r="0.95" fill="#14f6a3" opacity="0.13"/>
+<circle cx="971" cy="377" r="0.95" fill="#36bfb5" opacity="0.16"/>
+<circle cx="1350" cy="550" r="2.3" fill="#36bfb5" opacity="0.18"/>
+<circle cx="1729" cy="723" r="0.95" fill="#14f6a3" opacity="0.21"/>
+<circle cx="2108" cy="172" r="0.95" fill="#36bfb5" opacity="0.24"/>
+<circle cx="315" cy="345" r="0.95" fill="#36bfb5" opacity="0.08"/>
+<circle cx="694" cy="518" r="0.95" fill="#14f6a3" opacity="0.11"/>
+<circle cx="1073" cy="691" r="2.3" fill="#36bfb5" opacity="0.13"/>
+<circle cx="1452" cy="140" r="0.95" fill="#36bfb5" opacity="0.16"/>
+<circle cx="1831" cy="313" r="0.95" fill="#14f6a3" opacity="0.18"/>
+<circle cx="38" cy="486" r="0.95" fill="#36bfb5" opacity="0.21"/>
+<circle cx="417" cy="659" r="0.95" fill="#36bfb5" opacity="0.24"/>
+<g opacity=".38" fill="url(#dots)"><path d="M600 30l180-12 42 29 94-20 61 57-34 90-78 28-18 116-70 64-45-100-101-25-56-82-79-31z"/><path d="M1160 31l146 20 80-18 71 64 111 30-15 94-124 37-44 147-87 68-30-120-112-83-30-135z"/></g>
+<g font-family="'DejaVu Sans Mono',monospace" font-size="22" fill="#aac9c9" opacity=".72">
+ <text x="23" y="42">$ tree anauthentia/</text>
+ <text x="23" y="79" fill="#2df1a6">anauthentia/</text>
+ <text x="23" y="113">├── src/</text><text x="23" y="146">│   ├── main/</text>
+ <text x="23" y="179">│   │   └── java/</text><text x="23" y="212">│   └── test/</text>
+ <text x="23" y="245">├── docs/</text><text x="23" y="278">└── README.md</text>
+</g>
+<g font-family="'DejaVu Sans Mono',monospace" font-size="21" fill="#70908f" opacity=".66">
+ <text x="23" y="370"># open source</text><text x="23" y="400"># secure by design</text>
+ <text x="23" y="430"># zero trust</text><text x="23" y="460"># no blind authority</text>
+</g>
+<rect x="23" y="493" width="10" height="20" fill="#06f5a4"/>
+<g transform="translate(469 314) rotate(-11)" fill="none" stroke="url(#a)" stroke-linecap="round" stroke-linejoin="round" filter="url(#shadow)">
+ <path d="M-106 -114C-28 -181 105 -121 138 -31C176 75 83 151 -13 149C-127 147 -173 41 -136 -59C-129 -80 -118 -100 -106 -114Z" stroke-width="17" opacity=".92"/>
+ <path d="M-131 133L6 -164 145 133M-71 42H83" stroke-width="27"/>
+ <path d="M-139 75L125 -8" stroke-width="11"/>
+</g>
+<g font-family="Arial,Helvetica,sans-serif" font-weight="900" letter-spacing="-10">
+ <text x="594" y="375" font-size="170" fill="url(#a)">nA</text>
+ <text x="800" y="375" font-size="170" fill="url(#text)">uthentia</text>
+</g>
+<g font-family="'DejaVu Sans Mono',monospace" font-weight="600" font-size="47" letter-spacing="-1">
+ <text x="639" y="452" fill="#d8edee">Trust nobody.</text>
+ <text x="1072" y="452" fill="#11e2a8">Verify everything._</text>
+</g>
+<g transform="translate(1762 22)" font-family="'DejaVu Sans Mono',monospace" font-size="19">
+ <rect width="370" height="199" fill="#000a0a" stroke="#14b88e" stroke-width="1.4" opacity=".93"/>
+ <text x="20" y="34" fill="#b4d1ce">$ java --version</text><text x="20" y="63" fill="#90aba9">OpenJDK 8+</text>
+ <text x="20" y="108" fill="#b4d1ce">$ ./anauthentia</text>
+ <text x="20" y="138" fill="#14dda4">[✓] verifying...</text>
+ <text x="20" y="164" fill="#14dda4">[✓] zero trust</text>
+ <text x="20" y="190" fill="#14dda4">[✓] all good.</text>
+</g>
+<!-- stylized hooded Tux and laptop, open-source visual tribute -->
+<g transform="translate(1755 240)" filter="url(#shadow)">
+ <path d="M108 0C189 6 256 81 273 190L293 292 12 298 19 183C25 88 46 25 108 0Z" fill="#071414" stroke="#0abb86" stroke-width="5"/>
+ <ellipse cx="141" cy="151" rx="97" ry="119" fill="#162222" stroke="#5c837f" stroke-width="2.5"/>
+ <ellipse cx="141" cy="175" rx="73" ry="77" fill="#cbded9"/>
+ <ellipse cx="113" cy="129" rx="16" ry="25" fill="#fff"/><ellipse cx="169" cy="129" rx="16" ry="25" fill="#fff"/>
+ <ellipse cx="117" cy="133" rx="5.5" ry="9" fill="#080e13"/><ellipse cx="165" cy="133" rx="5.5" ry="9" fill="#080e13"/>
+ <path d="M108 175Q141 164 174 175L143 193Z" fill="#dcb572" stroke="#7f5b32" stroke-width="2"/>
+ <path d="M102 215Q144 242 186 207" fill="none" stroke="#333d3b" stroke-width="3.5"/>
+ <path d="M39 261Q142 227 246 266L292 384 0 384Z" fill="#0a1a1b" stroke="#06795e" stroke-width="2"/>
+ <path d="M64 36Q132 -13 210 48" fill="none" stroke="#0bf0a4" stroke-opacity=".5" stroke-width="4"/>
+</g>
+<g transform="translate(1546 496)"><path d="M0 0H409L439 158H29Z" fill="#061113" stroke="#177f70" stroke-width="3"/>
+ <path d="M25 149H456L484 171H12Z" fill="#132b2b" stroke="#1aa889" stroke-width="2"/>
+ <g transform="translate(236 74)" fill="none" stroke="#15d796" stroke-width="7" opacity=".67">
+  <circle r="34"/><path d="M-25 25L0 -29 25 25M-16 7H17"/>
+ </g>
+</g>
+<g transform="translate(1908 608)" font-family="'DejaVu Sans Mono',monospace" font-size="18">
+ <path d="M0 0H146V90H0Z" fill="#061111" stroke="#46ad98" stroke-width="2"/>
+ <path d="M146 15Q190 8 189 46Q189 78 146 69" fill="none" stroke="#46ad98" stroke-width="5"/>
+ <text x="9" y="28" fill="#c4e4dd">GOOD SECURITY</text><text x="9" y="55" fill="#49dba7">BAD AUTHORITY</text>
+</g>
+<path d="M0 683H2172" stroke="#0dab84" opacity=".44"/><path d="M23 660H580 M1370 660H1550" stroke="#16e29f" opacity=".34"/>
+</svg>
