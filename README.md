@@ -1,6 +1,6 @@
 <div align="center">
 
-![AnAuthentia — Trust nobody. Verify everything.](assets/anauthentia-banner.svg)
+![AnAuthentia — Trust nobody. Verify everything.](assets/anauthentia-banner.png)
 
 # AnAuthentia
 
