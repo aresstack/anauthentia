@@ -35,15 +35,33 @@ public final class JwtAccessTokenIssuer implements GrantAwareAccessTokenGenerato
         this.keyRing = Objects.requireNonNull(keyRing, "keyRing");
     }
 
-    @Override
+    /** Issue a token for the configured default issuer/audience. */
     public String generate(String clientId, String scope, Instant issuedAt, Instant expiresAt) {
+        return generate(clientId, scope, null, issuedAt, expiresAt);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>A non-blank RFC 8707 {@code resource} binds the token to exactly that
+     * resource: {@code aud} becomes the resource and {@code iss} its origin
+     * (resource without the trailing slash) — the per-site issuer model where
+     * every protected site discovers, authorizes and validates under its own
+     * public host while sharing one key ring.
+     */
+    @Override
+    public String generate(String clientId, String scope, String resource,
+                           Instant issuedAt, Instant expiresAt) {
         Objects.requireNonNull(clientId, "clientId");
         Objects.requireNonNull(issuedAt, "issuedAt");
         Objects.requireNonNull(expiresAt, "expiresAt");
 
+        boolean bound = resource != null && !resource.trim().isEmpty();
+        String tokenAudience = bound ? resource.trim() : audience;
+        String tokenIssuer = bound ? stripTrailingSlash(resource.trim()) : issuer;
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
-                .issuer(issuer)
-                .audience(audience)
+                .issuer(tokenIssuer)
+                .audience(tokenAudience)
                 .subject(clientId)
                 .claim("client_id", clientId)
                 .claim("scope", scope)
@@ -63,6 +81,14 @@ public final class JwtAccessTokenIssuer implements GrantAwareAccessTokenGenerato
             throw new IllegalStateException("Unable to sign the access token", exception);
         }
         return jwt.serialize();
+    }
+
+    private static String stripTrailingSlash(String value) {
+        String result = value;
+        while (result.endsWith("/")) {
+            result = result.substring(0, result.length() - 1);
+        }
+        return result;
     }
 
     private static String requireNonBlank(String value, String name) {

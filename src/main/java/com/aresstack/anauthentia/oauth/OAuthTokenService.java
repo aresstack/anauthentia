@@ -81,7 +81,7 @@ public final class OAuthTokenService {
         AccessTokenGenerator plainGenerator =
                 accessTokenGenerator == null ? this::createOpaqueValue : accessTokenGenerator;
         this.accessTokenGenerator =
-                (clientId, scope, issuedAt, expiresAt) -> plainGenerator.generate();
+                (clientId, scope, resource, issuedAt, expiresAt) -> plainGenerator.generate();
         loadRefreshTokens();
         removeExpiredRefreshTokens();
     }
@@ -121,11 +121,30 @@ public final class OAuthTokenService {
             String refreshToken,
             String redirectUri,
             String codeVerifier) {
+        return exchangeToken(clientId, clientSecret, grantType, code, refreshToken,
+                redirectUri, codeVerifier, null);
+    }
+
+    /**
+     * Dispatch a token grant bound to an RFC 8707 target resource: the grant
+     * must have been issued for this resource (or carry none), and the minted
+     * access token embeds it.
+     */
+    public synchronized TokenResponse exchangeToken(
+            String clientId,
+            String clientSecret,
+            String grantType,
+            String code,
+            String refreshToken,
+            String redirectUri,
+            String codeVerifier,
+            String expectedResource) {
         if ("authorization_code".equals(grantType)) {
-            return exchangeAuthorizationCode(clientId, clientSecret, code, redirectUri, codeVerifier);
+            return exchangeAuthorizationCode(clientId, clientSecret, code, redirectUri,
+                    codeVerifier, expectedResource);
         }
         if ("refresh_token".equals(grantType)) {
-            return refreshAccessToken(clientId, clientSecret, refreshToken);
+            return refreshAccessToken(clientId, clientSecret, refreshToken, expectedResource);
         }
         authenticateClient(clientId, clientSecret);
         throw new OAuthException(400, "unsupported_grant_type");
@@ -140,6 +159,16 @@ public final class OAuthTokenService {
             String code,
             String redirectUri,
             String codeVerifier) {
+        return exchangeAuthorizationCode(clientId, clientSecret, code, redirectUri, codeVerifier, null);
+    }
+
+    public synchronized TokenResponse exchangeAuthorizationCode(
+            String clientId,
+            String clientSecret,
+            String code,
+            String redirectUri,
+            String codeVerifier,
+            String expectedResource) {
         authenticateClient(clientId, clientSecret);
         cleanupReplayCaches();
         cleanupExpiredAccessTokens();
@@ -157,16 +186,24 @@ public final class OAuthTokenService {
         if (!grant.isPresent()) {
             throw new OAuthException(400, "invalid_grant");
         }
+        // Resource binding: a code issued for resource A must never mint
+        // tokens at resource B.
+        String grantResource = grant.get().getResource();
+        if (grantResource != null && expectedResource != null
+                && !grantResource.equals(expectedResource)) {
+            throw new OAuthException(400, "invalid_grant");
+        }
+        String resource = grantResource != null ? grantResource : expectedResource;
 
         Instant now = clock.instant();
         String accessToken = generateAccessToken(
-                clientId, grant.get().getScope(), now, now.plus(accessTokenLifetime));
+                clientId, grant.get().getScope(), resource, now, now.plus(accessTokenLifetime));
         String refreshToken = createOpaqueValue();
         int expiresIn = toSeconds(accessTokenLifetime);
 
         Map<String, RefreshToken> nextRefreshTokens = new HashMap<String, RefreshToken>(refreshTokens);
         nextRefreshTokens.put(digestToken(refreshToken), new RefreshToken(
-                clientId, grant.get().getScope(), now.plus(refreshTokenLifetime)));
+                clientId, grant.get().getScope(), resource, now.plus(refreshTokenLifetime)));
         replaceRefreshTokens(nextRefreshTokens);
 
         accessTokens.put(accessToken, new AccessTokenState(clientId, grant.get().getScope(), now.plus(accessTokenLifetime)));
@@ -184,6 +221,14 @@ public final class OAuthTokenService {
             String clientId,
             String clientSecret,
             String refreshToken) {
+        return refreshAccessToken(clientId, clientSecret, refreshToken, null);
+    }
+
+    public synchronized TokenResponse refreshAccessToken(
+            String clientId,
+            String clientSecret,
+            String refreshToken,
+            String expectedResource) {
         authenticateClient(clientId, clientSecret);
         cleanupReplayCaches();
         cleanupExpiredAccessTokens();
@@ -204,6 +249,12 @@ public final class OAuthTokenService {
         if (!state.getClientId().equals(clientId)) {
             throw new OAuthException(400, "invalid_grant");
         }
+        // Resource binding: a refresh token of resource A never refreshes at B.
+        if (state.getResource() != null && expectedResource != null
+                && !state.getResource().equals(expectedResource)) {
+            throw new OAuthException(400, "invalid_grant");
+        }
+        String resource = state.getResource() != null ? state.getResource() : expectedResource;
         if (!state.getExpiresAt().isAfter(clock.instant())) {
             Map<String, RefreshToken> nextRefreshTokens = new HashMap<String, RefreshToken>(refreshTokens);
             nextRefreshTokens.remove(refreshTokenKey);
@@ -213,14 +264,14 @@ public final class OAuthTokenService {
 
         Instant now = clock.instant();
         String accessToken = generateAccessToken(
-                clientId, state.getScope(), now, now.plus(accessTokenLifetime));
+                clientId, state.getScope(), resource, now, now.plus(accessTokenLifetime));
         String nextRefreshToken = refreshToken;
         if (refreshTokenRotationEnabled) {
             nextRefreshToken = createOpaqueValue();
             Map<String, RefreshToken> nextRefreshTokens = new HashMap<String, RefreshToken>(refreshTokens);
             nextRefreshTokens.remove(refreshTokenKey);
             nextRefreshTokens.put(digestToken(nextRefreshToken), new RefreshToken(
-                    clientId, state.getScope(), now.plus(refreshTokenLifetime)));
+                    clientId, state.getScope(), resource, now.plus(refreshTokenLifetime)));
             replaceRefreshTokens(nextRefreshTokens);
         }
 
@@ -371,8 +422,9 @@ public final class OAuthTokenService {
     }
 
     private String generateAccessToken(
-            String clientId, String scope, Instant issuedAt, Instant expiresAt) {
-        String accessToken = accessTokenGenerator.generate(clientId, scope, issuedAt, expiresAt);
+            String clientId, String scope, String resource, Instant issuedAt, Instant expiresAt) {
+        String accessToken = accessTokenGenerator.generate(
+                clientId, scope, resource, issuedAt, expiresAt);
         if (!isValidBearerTokenValue(accessToken)) {
             throw new IllegalStateException("Access-token generator returned an invalid bearer-token value");
         }

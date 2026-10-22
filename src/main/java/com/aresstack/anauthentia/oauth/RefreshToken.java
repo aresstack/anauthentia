@@ -10,11 +10,17 @@ public final class RefreshToken {
 
     private final String clientId;
     private final String scope;
+    private final String resource;
     private final Instant expiresAt;
 
     public RefreshToken(String clientId, String scope, Instant expiresAt) {
+        this(clientId, scope, null, expiresAt);
+    }
+
+    public RefreshToken(String clientId, String scope, String resource, Instant expiresAt) {
         this.clientId = requireText(clientId, "clientId");
         this.scope = requireText(scope, "scope");
+        this.resource = resource == null || resource.trim().isEmpty() ? null : resource.trim();
         this.expiresAt = Objects.requireNonNull(expiresAt, "expiresAt");
     }
 
@@ -24,6 +30,11 @@ public final class RefreshToken {
 
     public String getScope() {
         return scope;
+    }
+
+    /** RFC 8707 target resource this refresh token is bound to, or {@code null}. */
+    public String getResource() {
+        return resource;
     }
 
     public Instant getExpiresAt() {
@@ -41,12 +52,13 @@ public final class RefreshToken {
         RefreshToken that = (RefreshToken) other;
         return clientId.equals(that.clientId)
                 && scope.equals(that.scope)
+                && Objects.equals(resource, that.resource)
                 && expiresAt.equals(that.expiresAt);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(clientId, scope, expiresAt);
+        return Objects.hash(clientId, scope, resource, expiresAt);
     }
 
     private static String requireText(String value, String name) {

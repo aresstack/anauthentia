@@ -31,7 +31,9 @@ import java.nio.file.attribute.PosixFilePermission;
  */
 public final class FileRefreshTokenStore implements RefreshTokenStore {
 
-    private static final String HEADER = "ANAUTHENTIA_REFRESH_TOKEN_STORE\t1";
+    private static final String LEGACY_HEADER = "ANAUTHENTIA_REFRESH_TOKEN_STORE\t1";
+    // v2 ergänzt das RFC-8707-Resource-Feld; v1-Dateien bleiben lesbar.
+    private static final String HEADER = "ANAUTHENTIA_REFRESH_TOKEN_STORE\t2";
     private static final String FIELD_SEPARATOR = "\t";
     private static final Set<PosixFilePermission> OWNER_ONLY_PERMISSIONS =
             Collections.unmodifiableSet(EnumSet.of(
@@ -83,27 +85,29 @@ public final class FileRefreshTokenStore implements RefreshTokenStore {
 
     private Map<String, RefreshToken> readTokens() throws IOException {
         java.util.List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
-        if (lines.isEmpty() || !HEADER.equals(lines.get(0))) {
+        if (lines.isEmpty() || (!HEADER.equals(lines.get(0)) && !LEGACY_HEADER.equals(lines.get(0)))) {
             throw new IOException("Unsupported or invalid refresh-token store format");
         }
+        boolean legacy = LEGACY_HEADER.equals(lines.get(0));
 
         Map<String, RefreshToken> tokens = new LinkedHashMap<String, RefreshToken>();
         for (int lineNumber = 1; lineNumber < lines.size(); lineNumber++) {
             String line = lines.get(lineNumber);
             String[] fields = line.split(FIELD_SEPARATOR, -1);
-            if (fields.length != 4) {
+            if (fields.length != (legacy ? 4 : 5)) {
                 throw new IOException("Invalid refresh-token record");
             }
 
             String token = decode(fields[0]);
             String clientId = decode(fields[1]);
             String scope = decode(fields[2]);
-            Instant expiresAt = Instant.parse(decode(fields[3]));
+            String resource = legacy ? null : emptyToNull(decode(fields[3]));
+            Instant expiresAt = Instant.parse(decode(fields[legacy ? 3 : 4]));
             if (isBlank(token)) {
                 throw new IOException("Refresh-token record contains an empty token");
             }
 
-            RefreshToken state = new RefreshToken(clientId, scope, expiresAt);
+            RefreshToken state = new RefreshToken(clientId, scope, resource, expiresAt);
             if (tokens.containsKey(token)) {
                 throw new IOException("Duplicate refresh-token record");
             }
@@ -134,6 +138,8 @@ public final class FileRefreshTokenStore implements RefreshTokenStore {
             contents.append(encode(entry.getKey())).append(FIELD_SEPARATOR)
                     .append(encode(state.getClientId())).append(FIELD_SEPARATOR)
                     .append(encode(state.getScope())).append(FIELD_SEPARATOR)
+                    .append(encode(state.getResource() == null ? "" : state.getResource()))
+                    .append(FIELD_SEPARATOR)
                     .append(encode(state.getExpiresAt().toString())).append('\n');
         }
         return contents.toString().getBytes(StandardCharsets.UTF_8);
@@ -212,6 +218,10 @@ public final class FileRefreshTokenStore implements RefreshTokenStore {
 
     private static String decode(String value) {
         return new String(Base64.getUrlDecoder().decode(value), StandardCharsets.UTF_8);
+    }
+
+    private static String emptyToNull(String value) {
+        return value == null || value.isEmpty() ? null : value;
     }
 
     private static boolean isBlank(String value) {

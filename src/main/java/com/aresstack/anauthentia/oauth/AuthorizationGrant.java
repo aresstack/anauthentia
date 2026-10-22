@@ -11,15 +11,21 @@ public final class AuthorizationGrant {
     private final String clientId;
     private final String redirectUri;
     private final String scope;
+    private final String resource;
 
     public AuthorizationGrant(String clientId, String redirectUri) {
         this(clientId, redirectUri, "mcp");
     }
 
     public AuthorizationGrant(String clientId, String redirectUri, String scope) {
+        this(clientId, redirectUri, scope, null);
+    }
+
+    public AuthorizationGrant(String clientId, String redirectUri, String scope, String resource) {
         this.clientId = clientId;
         this.redirectUri = redirectUri;
         this.scope = scope;
+        this.resource = resource;
     }
 
     public String getClientId() {
@@ -32,5 +38,10 @@ public final class AuthorizationGrant {
 
     public String getScope() {
         return scope;
+    }
+
+    /** RFC 8707 target resource the grant is bound to, or {@code null}. */
+    public String getResource() {
+        return resource;
     }
 }

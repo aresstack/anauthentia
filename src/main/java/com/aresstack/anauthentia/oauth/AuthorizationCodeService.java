@@ -71,6 +71,23 @@ public final class AuthorizationCodeService {
             String scope,
             String codeChallenge,
             String codeChallengeMethod) {
+        return authorize(responseType, clientId, redirectUri, state, scope,
+                codeChallenge, codeChallengeMethod, null);
+    }
+
+    /**
+     * Authorize with an RFC 8707 target resource: the issued code (and every
+     * token minted from it) is bound to exactly this resource.
+     */
+    public String authorize(
+            String responseType,
+            String clientId,
+            String redirectUri,
+            String state,
+            String scope,
+            String codeChallenge,
+            String codeChallengeMethod,
+            String resource) {
         if (!"code".equals(responseType)) {
             throw new OAuthException(400, "unsupported_response_type");
         }
@@ -99,7 +116,8 @@ public final class AuthorizationCodeService {
             throw new OAuthException(400, "invalid_scope", "Invalid scope");
         }
 
-        String code = issue(clientId, redirectUri, normalizedScope, codeChallenge, codeChallengeMethod);
+        String code = issue(clientId, redirectUri, normalizedScope, codeChallenge,
+                codeChallengeMethod, resource);
         return appendQuery(redirectUri, code, state);
     }
 
@@ -125,6 +143,16 @@ public final class AuthorizationCodeService {
             String scope,
             String codeChallenge,
             String codeChallengeMethod) {
+        return issue(clientId, redirectUri, scope, codeChallenge, codeChallengeMethod, null);
+    }
+
+    private String issue(
+            String clientId,
+            String redirectUri,
+            String scope,
+            String codeChallenge,
+            String codeChallengeMethod,
+            String resource) {
         if (!isValidPkceRequest(codeChallenge, codeChallengeMethod)) {
             throw new IllegalArgumentException("Invalid PKCE parameters");
         }
@@ -140,6 +168,7 @@ public final class AuthorizationCodeService {
                 normalizeScope(scope),
                 codeChallenge,
                 codeChallengeMethod,
+                resource,
                 clock.instant().plus(codeLifetime));
 
         for (int attempt = 0; attempt < 5; attempt++) {
@@ -181,7 +210,8 @@ public final class AuthorizationCodeService {
         if (!isValidPkceExchange(codeVerifier, stored.getCodeChallenge(), stored.getCodeChallengeMethod())) {
             return Optional.empty();
         }
-        return Optional.of(new AuthorizationGrant(stored.getClientId(), stored.getRedirectUri(), stored.getScope()));
+        return Optional.of(new AuthorizationGrant(
+                stored.getClientId(), stored.getRedirectUri(), stored.getScope(), stored.getResource()));
     }
 
     private String generateCode() {

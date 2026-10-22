@@ -14,6 +14,7 @@ public final class AuthorizationCode {
     private final String scope;
     private final String codeChallenge;
     private final String codeChallengeMethod;
+    private final String resource;
     private final Instant expiresAt;
 
     public AuthorizationCode(String clientId, String redirectUri, String codeChallenge, Instant expiresAt) {
@@ -36,6 +37,18 @@ public final class AuthorizationCode {
             String codeChallenge,
             String codeChallengeMethod,
             Instant expiresAt) {
+        this(clientId, redirectUri, scope, codeChallenge, codeChallengeMethod, null, expiresAt);
+    }
+
+    public AuthorizationCode(
+            String clientId,
+            String redirectUri,
+            String scope,
+            String codeChallenge,
+            String codeChallengeMethod,
+            String resource,
+            Instant expiresAt) {
+        this.resource = resource == null || resource.trim().isEmpty() ? null : resource.trim();
         this.clientId = requireText(clientId, "clientId");
         this.redirectUri = requireText(redirectUri, "redirectUri");
         this.scope = requireText(scope, "scope");
@@ -66,6 +79,11 @@ public final class AuthorizationCode {
 
     public Instant getExpiresAt() {
         return expiresAt;
+    }
+
+    /** RFC 8707 target resource the grant is bound to, or {@code null}. */
+    public String getResource() {
+        return resource;
     }
 
     private static String defaultMethod(String codeChallenge) {

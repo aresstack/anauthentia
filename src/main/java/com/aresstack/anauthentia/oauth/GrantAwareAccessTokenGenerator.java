@@ -18,8 +18,10 @@ public interface GrantAwareAccessTokenGenerator {
      *
      * @param clientId the authenticated OAuth client
      * @param scope the space-separated granted scopes
+     * @param resource the RFC 8707 target resource the grant is bound to, or {@code null}
      * @param issuedAt the issuance instant
      * @param expiresAt the expiry instant the service will enforce
      */
-    String generate(String clientId, String scope, Instant issuedAt, Instant expiresAt);
+    String generate(String clientId, String scope, String resource,
+                    Instant issuedAt, Instant expiresAt);
 }
