@@ -151,10 +151,18 @@ Site unter einem Pfad veröffentlicht ist).
 
 Kompatibilitätsregel: Bestehende öffentliche URLs der Dienste bleiben
 gültig; Caddy routet `/.well-known/*` und `/oauth/*` jeder geschützten Site
-auf die zentrale Runtime. `issuer` wechselt damit pro Site auf die
-Site-Origin ODER zentral auf einen gemeinsamen Issuer — Entscheidung:
-**pro-Site-Issuer in Phase 1** (keine Client-Neuautorisierung nötig),
-gemeinsamer Issuer (`auth.<domain>`) optional später.
+auf die zentrale Runtime. **Entschieden und implementiert: Per-Site-Issuer,
+abgeleitet aus dem durchgereichten Host-Header.** Die Runtime bedient alle
+Sites mit einem Schlüsselring und einer Client-Registry, aber Discovery,
+`iss` und `aud` sind pro Site deren eigene Origin bzw. `origin/`. Jeder
+Grant ist RFC-8707-förmig an seine Ressource gebunden: Authorization-Codes
+und Refresh-Tokens tragen die Ressource, ein Exchange/Refresh am Host einer
+anderen Site wird mit `invalid_grant` abgelehnt, und die Validatoren der
+Dienste akzeptieren ausschließlich ihre eigene Audience (nachgewiesen durch
+`ResourceIsolationTest`, `OAuthCrossServiceSmokeTest` und den
+Caddy-in-the-loop-Test `CaddyOAuthDiscoveryIntegrationTest`). Direktzugriffe
+auf die Loopback-Runtime ohne verwertbaren Host fallen auf den konfigurierten
+Issuer zurück.
 
 ### 2.6 Client-Modell Ziel
 
