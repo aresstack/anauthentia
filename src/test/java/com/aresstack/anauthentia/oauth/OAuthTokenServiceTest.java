@@ -123,7 +123,25 @@ class OAuthTokenServiceTest {
         assertEquals("invalid_grant", exception.getError());
     }
 
+    @Test
+    void usesHostProvidedAccessTokenGenerator() {
+        Fixture fixture = createFixture(
+                Clock.fixed(NOW, ZoneOffset.UTC), true, () -> "fixed-access-token");
+
+        TokenResponse response = fixture.tokens.exchangeAuthorizationCode(
+                CLIENT_ID, CLIENT_SECRET, fixture.issueCode(), REDIRECT_URI, VERIFIER);
+
+        assertEquals("fixed-access-token", response.getAccessToken());
+        assertEquals(BearerAuthResult.OK,
+                fixture.tokens.checkBearerAuth("Bearer fixed-access-token"));
+    }
+
     private static Fixture createFixture(Clock clock, boolean rotateRefreshTokens) {
+        return createFixture(clock, rotateRefreshTokens, null);
+    }
+
+    private static Fixture createFixture(
+            Clock clock, boolean rotateRefreshTokens, AccessTokenGenerator accessTokenGenerator) {
         InMemoryOAuthClientRegistry clients = new InMemoryOAuthClientRegistry();
         clients.register(new OAuthClient(
                 CLIENT_ID, CLIENT_SECRET, Collections.singleton(REDIRECT_URI)));
@@ -143,7 +161,8 @@ class OAuthTokenServiceTest {
                 clock,
                 Duration.ofSeconds(900),
                 Duration.ofDays(30),
-                rotateRefreshTokens);
+                rotateRefreshTokens,
+                accessTokenGenerator);
         return new Fixture(authorizationCodes, tokens);
     }
 

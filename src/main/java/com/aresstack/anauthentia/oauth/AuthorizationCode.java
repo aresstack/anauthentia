@@ -5,6 +5,7 @@ import java.util.Objects;
 
 /**
  * Immutable authorization-code data managed by a host application using this library.
+ * A missing PKCE challenge is only valid when the owning service explicitly allows it.
  */
 public final class AuthorizationCode {
 
@@ -27,7 +28,7 @@ public final class AuthorizationCode {
         this.clientId = requireText(clientId, "clientId");
         this.redirectUri = requireText(redirectUri, "redirectUri");
         this.scope = requireText(scope, "scope");
-        this.codeChallenge = requireText(codeChallenge, "codeChallenge");
+        this.codeChallenge = codeChallenge;
         this.expiresAt = Objects.requireNonNull(expiresAt, "expiresAt");
     }
 

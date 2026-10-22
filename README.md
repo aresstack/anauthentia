@@ -24,7 +24,7 @@ The name is an intentionally mischievous play on *authentia* and anarchy. The lo
 - **Framework-independent core:** no runtime dependency on Vert.x, Spring, Swing, or a specific Java HTTP server.
 - **Java 8 baseline:** usable from AskAI while remaining compatible with Pyloros on Java 21.
 - **OAuth 2.0 authorization flows:** authorization codes, PKCE S256, client-secret validation, bearer access tokens, refresh tokens, and optional refresh-token rotation.
-- **Security by default:** exact redirect URI allow-lists, one-time authorization-code consumption, bounded token lifetimes, serialized token state transitions, and no credentials or tokens in logs.
+- **Security by default:** PKCE S256, exact redirect URI allow-lists, one-time authorization-code consumption, bounded token lifetimes, serialized token state transitions, and no credentials or tokens in logs. Hosts may explicitly inject redirect policies or enable missing-PKCE compatibility when an existing protocol integration requires it.
 - **Replaceable persistence and time:** interfaces for refresh-token persistence and injectable clocks for deterministic tests.
 - **Thorough tests:** concurrent code exchange, replay, expiry, rotation, invalid credentials, and refresh-token restoration through a host-provided store.
 
@@ -55,9 +55,7 @@ The current branch contains:
 
 AnAuthentia is an embeddable library, **not a standalone OAuth server**. The host application owns HTTP endpoints, protocol serialization, client configuration, OAuth discovery, and durable storage.
 
-The in-memory authorization-code and client-registry implementations do not survive restarts. Access tokens and short replay caches are intentionally process-local, so restarting an application invalidates its access tokens.
-
-`FileRefreshTokenStore` can preserve refresh-token state across restarts. Its versioned file format encodes fields for reliable serialization but does not encrypt them; protect the file and parent directory as secrets. Atomic replacement is preferred and a non-atomic replacement is used only when the filesystem does not support atomic moves. The store synchronizes operations on one instance, but does not coordinate multiple instances or processes writing the same path.
+The in-memory authorization-code and client-registry implementations do not survive restarts or coordinate multiple instances. `FileRefreshTokenStore` preserves refresh-token state across restarts, but stores bearer-equivalent credentials without encryption and does not coordinate multiple processes writing the same path. Protect the file and parent directory. Access tokens and short replay caches are intentionally process-local, so restarting an application invalidates its access tokens.
 
 The library does not yet include complete AskAI/Pyloros integration adapters, and no Maven Central artifact has been published. Review host integration, deployment permissions, and multi-instance requirements before production use.
 

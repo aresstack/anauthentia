@@ -49,6 +49,57 @@ class AuthorizationCodeServiceTest {
     }
 
     @Test
+    void requiresPkceByDefault() {
+        AuthorizationCodeService service = createService(Clock.fixed(NOW, ZoneOffset.UTC));
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalArgumentException.class,
+                () -> service.issue(CLIENT_ID, REDIRECT_URI, (String) null));
+    }
+
+    @Test
+    void supportsMissingPkceOnlyWhenCompatibilityIsExplicitlyEnabled() {
+        Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+        InMemoryOAuthClientRegistry clients = new InMemoryOAuthClientRegistry();
+        clients.register(new OAuthClient(CLIENT_ID, Collections.singleton(REDIRECT_URI)));
+        AuthorizationCodeService service = new AuthorizationCodeService(
+                new InMemoryAuthorizationCodeStore(),
+                clients,
+                new SecureRandom(),
+                clock,
+                Duration.ofSeconds(60),
+                true,
+                OAuthClient::allowsRedirectUri);
+
+        String code = service.issue(CLIENT_ID, REDIRECT_URI, (String) null);
+
+        assertTrue(service.exchange(code, CLIENT_ID, REDIRECT_URI, null).isPresent());
+    }
+
+    @Test
+    void appliesHostSuppliedRedirectUriPolicyDuringAuthorizationAndExchange() {
+        Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+        String chatGptRedirectUri = "https://chatgpt.com/connector/callback";
+        InMemoryOAuthClientRegistry clients = new InMemoryOAuthClientRegistry();
+        clients.register(OAuthClient.withHostManagedRedirects(CLIENT_ID, ""));
+        AuthorizationCodeService service = new AuthorizationCodeService(
+                new InMemoryAuthorizationCodeStore(),
+                clients,
+                new SecureRandom(),
+                clock,
+                Duration.ofSeconds(60),
+                true,
+                (client, redirectUri) -> redirectUri.startsWith("https://chatgpt.com/"));
+
+        String location = service.authorize(
+                "code", CLIENT_ID, chatGptRedirectUri, "state", "mcp", null, null);
+        String code = location.substring(location.indexOf("code=") + "code=".length());
+        code = code.substring(0, code.indexOf('&') < 0 ? code.length() : code.indexOf('&'));
+
+        assertTrue(service.exchange(code, CLIENT_ID, chatGptRedirectUri, null).isPresent());
+    }
+
+    @Test
     void exchangesValidCodeExactlyOnce() {
         AuthorizationCodeService service = createService(Clock.fixed(NOW, ZoneOffset.UTC));
         String code = service.issue(CLIENT_ID, REDIRECT_URI, CHALLENGE);

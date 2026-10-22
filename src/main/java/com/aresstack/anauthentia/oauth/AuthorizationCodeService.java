@@ -15,10 +15,11 @@ import java.util.Optional;
 /**
  * Framework-neutral authorization-code issuance and validation.
  *
- * <p>Require PKCE S256 and exact redirect URI matching. Consume a code atomically
- * before validating the exchange so no invalid attempt can make the same code
- * available for replay. This class deliberately does not create access tokens
- * or handle HTTP requests.
+ * <p>Require PKCE S256 and exact redirect URI matching by default. Hosts may
+ * explicitly enable missing-PKCE compatibility and supply a redirect policy.
+ * Consume a code atomically before validating the exchange so no invalid attempt
+ * can make the same code available for replay. This class deliberately does not
+ * create access tokens or handle HTTP requests.
  */
 public final class AuthorizationCodeService {
 
@@ -30,6 +31,8 @@ public final class AuthorizationCodeService {
     private final SecureRandom secureRandom;
     private final Clock clock;
     private final Duration codeLifetime;
+    private final boolean allowMissingPkce;
+    private final RedirectUriPolicy redirectUriPolicy;
 
     public AuthorizationCodeService(
             AuthorizationCodeStore store,
@@ -37,11 +40,24 @@ public final class AuthorizationCodeService {
             SecureRandom secureRandom,
             Clock clock,
             Duration codeLifetime) {
+        this(store, clientRegistry, secureRandom, clock, codeLifetime, false, OAuthClient::allowsRedirectUri);
+    }
+
+    public AuthorizationCodeService(
+            AuthorizationCodeStore store,
+            OAuthClientRegistry clientRegistry,
+            SecureRandom secureRandom,
+            Clock clock,
+            Duration codeLifetime,
+            boolean allowMissingPkce,
+            RedirectUriPolicy redirectUriPolicy) {
         this.store = Objects.requireNonNull(store, "store");
         this.clientRegistry = Objects.requireNonNull(clientRegistry, "clientRegistry");
         this.secureRandom = Objects.requireNonNull(secureRandom, "secureRandom");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.codeLifetime = requirePositiveLifetime(codeLifetime);
+        this.allowMissingPkce = allowMissingPkce;
+        this.redirectUriPolicy = Objects.requireNonNull(redirectUriPolicy, "redirectUriPolicy");
     }
 
     /**
@@ -64,7 +80,7 @@ public final class AuthorizationCodeService {
         if (isBlank(redirectUri)) {
             throw new OAuthException(400, "invalid_request", "Missing redirect_uri");
         }
-        if (!"S256".equals(codeChallengeMethod) || !isValidChallenge(codeChallenge)) {
+        if (!isValidPkceRequest(codeChallenge, codeChallengeMethod)) {
             throw new OAuthException(400, "invalid_request", "PKCE S256 is required");
         }
 
@@ -72,7 +88,7 @@ public final class AuthorizationCodeService {
         if (client == null) {
             throw new OAuthException(400, "invalid_client");
         }
-        if (!client.allowsRedirectUri(redirectUri)) {
+        if (!redirectUriPolicy.allows(client, redirectUri)) {
             throw new OAuthException(400, "invalid_request", "Unsupported redirect_uri");
         }
 
@@ -92,12 +108,12 @@ public final class AuthorizationCodeService {
      * Issue an opaque, short-lived authorization code with an explicit scope.
      */
     public String issue(String clientId, String redirectUri, String scope, String codeChallenge) {
-        if (!isValidChallenge(codeChallenge)) {
+        if (!isValidCodeChallenge(codeChallenge)) {
             throw new IllegalArgumentException("codeChallenge must be a valid S256 challenge");
         }
         OAuthClient client = clientRegistry.findByClientId(clientId)
                 .orElseThrow(() -> new IllegalArgumentException("Client is not registered"));
-        if (!client.allowsRedirectUri(redirectUri)) {
+        if (!redirectUriPolicy.allows(client, redirectUri)) {
             throw new IllegalArgumentException("Redirect URI is not registered for this client");
         }
 
@@ -141,10 +157,10 @@ public final class AuthorizationCodeService {
             return Optional.empty();
         }
         OAuthClient client = clientRegistry.findByClientId(clientId).orElse(null);
-        if (client == null || !client.allowsRedirectUri(redirectUri)) {
+        if (client == null || !redirectUriPolicy.allows(client, redirectUri)) {
             return Optional.empty();
         }
-        if (!PkceS256.matches(codeVerifier, stored.getCodeChallenge())) {
+        if (!isValidPkceExchange(codeVerifier, stored.getCodeChallenge())) {
             return Optional.empty();
         }
         return Optional.of(new AuthorizationGrant(stored.getClientId(), stored.getRedirectUri(), stored.getScope()));
@@ -189,6 +205,24 @@ public final class AuthorizationCodeService {
 
     private static String normalizeScope(String scope) {
         return isBlank(scope) ? DEFAULT_SCOPE : scope.trim();
+    }
+
+    private boolean isValidPkceRequest(String challenge, String method) {
+        if (isBlank(challenge)) {
+            return allowMissingPkce;
+        }
+        return "S256".equals(method) && isValidChallenge(challenge);
+    }
+
+    private boolean isValidCodeChallenge(String challenge) {
+        return isBlank(challenge) ? allowMissingPkce : isValidChallenge(challenge);
+    }
+
+    private boolean isValidPkceExchange(String verifier, String challenge) {
+        if (isBlank(challenge)) {
+            return allowMissingPkce;
+        }
+        return PkceS256.matches(verifier, challenge);
     }
 
     private static boolean isValidChallenge(String challenge) {

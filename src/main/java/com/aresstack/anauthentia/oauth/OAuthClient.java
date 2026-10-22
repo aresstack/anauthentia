@@ -22,11 +22,23 @@ public final class OAuthClient {
         this(clientId, null, redirectUris);
     }
 
+    /**
+     * Register a client whose redirect URIs are validated by a host-supplied policy.
+     */
+    public static OAuthClient withHostManagedRedirects(String clientId, String clientSecret) {
+        return new OAuthClient(clientId, clientSecret, Collections.<String>emptySet(), true);
+    }
+
     public OAuthClient(String clientId, String clientSecret, Set<String> redirectUris) {
+        this(clientId, clientSecret, redirectUris, false);
+    }
+
+    private OAuthClient(
+            String clientId, String clientSecret, Set<String> redirectUris, boolean allowEmptyRedirectUris) {
         if (isBlank(clientId)) {
             throw new IllegalArgumentException("clientId must not be blank");
         }
-        if (redirectUris == null || redirectUris.isEmpty()) {
+        if (redirectUris == null || (!allowEmptyRedirectUris && redirectUris.isEmpty())) {
             throw new IllegalArgumentException("At least one redirect URI is required");
         }
         Set<String> validatedRedirectUris = new HashSet<String>();

@@ -34,6 +34,7 @@ public final class OAuthTokenService {
     private final Duration accessTokenLifetime;
     private final Duration refreshTokenLifetime;
     private final boolean refreshTokenRotationEnabled;
+    private final AccessTokenGenerator accessTokenGenerator;
     private final Map<String, AccessTokenState> accessTokens = new HashMap<String, AccessTokenState>();
     private final Map<String, RefreshToken> refreshTokens = new HashMap<String, RefreshToken>();
     private final Map<String, AuthorizationReplay> authorizationReplayCache =
@@ -49,6 +50,20 @@ public final class OAuthTokenService {
             Duration accessTokenLifetime,
             Duration refreshTokenLifetime,
             boolean refreshTokenRotationEnabled) {
+        this(authorizationCodeService, clientRegistry, refreshTokenStore, secureRandom, clock,
+                accessTokenLifetime, refreshTokenLifetime, refreshTokenRotationEnabled, null);
+    }
+
+    public OAuthTokenService(
+            AuthorizationCodeService authorizationCodeService,
+            OAuthClientRegistry clientRegistry,
+            RefreshTokenStore refreshTokenStore,
+            SecureRandom secureRandom,
+            Clock clock,
+            Duration accessTokenLifetime,
+            Duration refreshTokenLifetime,
+            boolean refreshTokenRotationEnabled,
+            AccessTokenGenerator accessTokenGenerator) {
         this.authorizationCodeService = Objects.requireNonNull(authorizationCodeService, "authorizationCodeService");
         this.clientRegistry = Objects.requireNonNull(clientRegistry, "clientRegistry");
         this.refreshTokenStore = Objects.requireNonNull(refreshTokenStore, "refreshTokenStore");
@@ -57,8 +72,30 @@ public final class OAuthTokenService {
         this.accessTokenLifetime = requirePositiveLifetime(accessTokenLifetime, "accessTokenLifetime");
         this.refreshTokenLifetime = requirePositiveLifetime(refreshTokenLifetime, "refreshTokenLifetime");
         this.refreshTokenRotationEnabled = refreshTokenRotationEnabled;
+        this.accessTokenGenerator = accessTokenGenerator == null ? this::createOpaqueValue : accessTokenGenerator;
         loadRefreshTokens();
         removeExpiredRefreshTokens();
+    }
+
+    /**
+     * Dispatch a token grant after authenticating the OAuth client.
+     */
+    public synchronized TokenResponse exchangeToken(
+            String clientId,
+            String clientSecret,
+            String grantType,
+            String code,
+            String refreshToken,
+            String redirectUri,
+            String codeVerifier) {
+        if ("authorization_code".equals(grantType)) {
+            return exchangeAuthorizationCode(clientId, clientSecret, code, redirectUri, codeVerifier);
+        }
+        if ("refresh_token".equals(grantType)) {
+            return refreshAccessToken(clientId, clientSecret, refreshToken);
+        }
+        authenticateClient(clientId, clientSecret);
+        throw new OAuthException(400, "unsupported_grant_type");
     }
 
     /**
@@ -88,7 +125,7 @@ public final class OAuthTokenService {
         }
 
         Instant now = clock.instant();
-        String accessToken = createOpaqueValue();
+        String accessToken = generateAccessToken();
         String refreshToken = createOpaqueValue();
         int expiresIn = toSeconds(accessTokenLifetime);
 
@@ -137,7 +174,7 @@ public final class OAuthTokenService {
         }
 
         Instant now = clock.instant();
-        String accessToken = createOpaqueValue();
+        String accessToken = generateAccessToken();
         String nextRefreshToken = refreshToken;
         if (refreshTokenRotationEnabled) {
             nextRefreshToken = createOpaqueValue();
@@ -234,6 +271,14 @@ public final class OAuthTokenService {
                 iterator.remove();
             }
         }
+    }
+
+    private String generateAccessToken() {
+        String accessToken = accessTokenGenerator.generate();
+        if (isBlank(accessToken)) {
+            throw new IllegalStateException("Access-token generator returned a blank value");
+        }
+        return accessToken;
     }
 
     private String createOpaqueValue() {
