@@ -3,6 +3,9 @@ package com.aresstack.anauthentia.jwt;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
+import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.jwk.source.RemoteJWKSet;
+import com.nimbusds.jose.util.DefaultResourceRetriever;
 import com.nimbusds.jose.proc.DefaultJOSEObjectTypeVerifier;
 import com.nimbusds.jose.proc.JWSVerificationKeySelector;
 import com.nimbusds.jose.proc.SecurityContext;
@@ -10,6 +13,7 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.proc.DefaultJWTClaimsVerifier;
 import com.nimbusds.jwt.proc.DefaultJWTProcessor;
 
+import java.net.URL;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -27,6 +31,9 @@ import java.util.Optional;
 public final class JwtAccessTokenValidator {
 
     private static final Duration DEFAULT_CLOCK_SKEW = Duration.ofSeconds(60);
+    private static final int HTTP_CONNECT_TIMEOUT_MILLIS = 2000;
+    private static final int HTTP_READ_TIMEOUT_MILLIS = 2000;
+    private static final int HTTP_SIZE_LIMIT_BYTES = 256 * 1024;
 
     private final DefaultJWTProcessor<SecurityContext> processor;
 
@@ -36,9 +43,23 @@ public final class JwtAccessTokenValidator {
 
     public JwtAccessTokenValidator(
             String expectedIssuer, String expectedAudience, JWKSet publicKeys, Duration clockSkew) {
+        this(expectedIssuer, expectedAudience,
+                new ImmutableJWKSet<SecurityContext>(
+                        toPublicOnly(Objects.requireNonNull(publicKeys, "publicKeys"))),
+                clockSkew);
+    }
+
+    /**
+     * Validate against a dynamic key source, typically a cached remote JWKS
+     * (see {@link #forRemoteJwks}). The source should only ever supply public
+     * key material.
+     */
+    public JwtAccessTokenValidator(
+            String expectedIssuer, String expectedAudience,
+            JWKSource<SecurityContext> keySource, Duration clockSkew) {
         requireNonBlank(expectedIssuer, "expectedIssuer");
         requireNonBlank(expectedAudience, "expectedAudience");
-        Objects.requireNonNull(publicKeys, "publicKeys");
+        Objects.requireNonNull(keySource, "keySource");
         Objects.requireNonNull(clockSkew, "clockSkew");
         if (clockSkew.isNegative() || clockSkew.getSeconds() > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("clockSkew must be a non-negative number of seconds");
@@ -49,7 +70,7 @@ public final class JwtAccessTokenValidator {
                 JwtAccessTokenIssuer.ACCESS_TOKEN_TYPE));
         // Algorithmus-Allowlist: ausschließlich RS256; "none"/HS* scheitern hier.
         processor.setJWSKeySelector(new JWSVerificationKeySelector<SecurityContext>(
-                JWSAlgorithm.RS256, new ImmutableJWKSet<SecurityContext>(toPublicOnly(publicKeys))));
+                JWSAlgorithm.RS256, keySource));
         DefaultJWTClaimsVerifier<SecurityContext> claimsVerifier =
                 new DefaultJWTClaimsVerifier<SecurityContext>(
                         expectedAudience,
@@ -57,6 +78,21 @@ public final class JwtAccessTokenValidator {
                         new HashSet<String>(Arrays.asList("exp", "iat", "sub")));
         claimsVerifier.setMaxClockSkew((int) clockSkew.getSeconds());
         processor.setJWTClaimsSetVerifier(claimsVerifier);
+    }
+
+    /**
+     * Resource-server validator that fetches and caches the issuer's JWKS from
+     * {@code jwksUrl}. The underlying {@code RemoteJWKSet} caches keys, refreshes
+     * on an unknown {@code kid}, and rate-limits retrieval, so a key rotation is
+     * picked up without a restart and a key-spray cannot hammer the issuer.
+     */
+    public static JwtAccessTokenValidator forRemoteJwks(
+            String expectedIssuer, String expectedAudience, URL jwksUrl) {
+        Objects.requireNonNull(jwksUrl, "jwksUrl");
+        DefaultResourceRetriever retriever = new DefaultResourceRetriever(
+                HTTP_CONNECT_TIMEOUT_MILLIS, HTTP_READ_TIMEOUT_MILLIS, HTTP_SIZE_LIMIT_BYTES);
+        return new JwtAccessTokenValidator(expectedIssuer, expectedAudience,
+                new RemoteJWKSet<SecurityContext>(jwksUrl, retriever), DEFAULT_CLOCK_SKEW);
     }
 
     /**
