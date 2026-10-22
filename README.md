@@ -10,11 +10,11 @@
 
 </div>
 
-> **Status: project bootstrap.** The reusable library and its public API are under development. No production-ready implementation or Maven Central artifact is published yet.
+> **Status: early development.** The core authorization-code and token lifecycle APIs are implemented and tested. No production-ready release or Maven Central artifact is published yet.
 
 ## Why AnAuthentia?
 
-AskAI and Pyloros currently maintain separate OAuth implementations with overlapping responsibilities. **AnAuthentia** will extract the common, security-sensitive logic into one tested library, so both applications can share it without coupling their HTTP stacks.
+AskAI and Pyloros currently maintain separate OAuth implementations with overlapping responsibilities. **AnAuthentia** extracts common, security-sensitive logic into one tested library, so both applications can share it without coupling their HTTP stacks.
 
 The name is an intentionally mischievous play on *authentia* and anarchy. The logo is rebellious; the security model is not.
 
@@ -23,10 +23,10 @@ The name is an intentionally mischievous play on *authentia* and anarchy. The lo
 - **Library first:** no standalone HTTP server or centrally hosted identity provider.
 - **Framework-independent core:** no runtime dependency on Vert.x, Spring, Swing, or a specific Java HTTP server.
 - **Java 8 baseline:** usable from AskAI while remaining compatible with Pyloros on Java 21.
-- **OAuth 2.0 authorization flows:** authorization codes, PKCE S256, client credentials validation, bearer tokens, and refresh-token lifecycle.
-- **Security by default:** explicit redirect URI validation, fail-closed behavior, bounded token lifetimes, safe concurrency, and no credentials or tokens in logs.
-- **Replaceable persistence and time:** interfaces for token storage, clocks, and other infrastructure that need deterministic tests.
-- **Thorough tests:** concurrent requests, replay, expiry, rotation, invalid credentials, restart/persistence, and integration behavior.
+- **OAuth 2.0 authorization flows:** authorization codes, PKCE S256, client-secret validation, bearer access tokens, refresh tokens, and optional refresh-token rotation.
+- **Security by default:** exact redirect URI allow-lists, one-time authorization-code consumption, bounded token lifetimes, serialized token state transitions, and no credentials or tokens in logs.
+- **Replaceable persistence and time:** interfaces for refresh-token persistence and injectable clocks for deterministic tests.
+- **Thorough tests:** concurrent code exchange, replay, expiry, rotation, invalid credentials, and refresh-token restoration through a host-provided store.
 
 ## Planned integration
 
@@ -35,23 +35,41 @@ The name is an intentionally mischievous play on *authentia* and anarchy. The lo
 | [AskAI](https://github.com/Miguel0888/askai-java8) | Existing Java HTTP server | 8+ |
 | [Pyloros](https://github.com/aresstack/pyloros) | Vert.x routes | 21 |
 
-Application-specific endpoints, configuration, and HTTP handling remain in those projects. The authorization logic and token lifecycle move into AnAuthentia.
+Application-specific endpoints, OAuth discovery metadata, HTTP request/response handling, and durable storage adapters remain in those projects. AnAuthentia provides reusable OAuth logic through Java APIs.
 
-## Roadmap
+## Current implementation
 
-1. Extract and review the common OAuth domain model and interfaces.
-2. Implement and test the framework-neutral core, addressing known security and concurrency risks.
-3. Integrate AskAI and Pyloros using thin adapters and preserve their public OAuth contracts.
-4. Publish a versioned Java artifact to Maven Central with API documentation and integration examples.
-5. Reconsider centralizing authentication only if a genuine shared-service use case emerges.
+The current branch contains:
+
+- PKCE S256 verification using an RFC 7636 test vector.
+- Framework-neutral authorization-code issuance and exchange, with exact redirect URI matching, client binding, scope retention, expiry, and atomic one-time consumption.
+- Client registration with exact redirect URI allow-lists and constant-time comparison for confidential-client secrets.
+- Access-token issuance and Bearer-token validation with configurable expiry.
+- Refresh-token lifecycle with configurable expiry, optional rotation, and a short replay window to tolerate identical parallel token requests.
+- A `RefreshTokenStore` abstraction with synchronized in-memory and file-backed implementations.
+- Versioned refresh-token snapshots written to a temporary file and replaced atomically when the filesystem supports it; POSIX file permissions are restricted to the owner where available.
+- Persistence-first token rotation so a failed save does not invalidate the previous refresh token, plus tests for cross-client token misuse and storage failures.
+- Tests for successful exchange, invalid client credentials, expiry, invalid PKCE, replay, rotation, concurrent code exchange, file-store round trips, corrupt-store rejection, and restoring refresh-token state after service reconstruction.
+
+## Important limitations
+
+AnAuthentia is an embeddable library, **not a standalone OAuth server**. The host application owns HTTP endpoints, protocol serialization, client configuration, OAuth discovery, and durable storage.
+
+The in-memory authorization-code and client-registry implementations do not survive restarts. Access tokens and short replay caches are intentionally process-local, so restarting an application invalidates its access tokens.
+
+`FileRefreshTokenStore` can preserve refresh-token state across restarts. Its versioned file format encodes fields for reliable serialization but does not encrypt them; protect the file and parent directory as secrets. Atomic replacement is preferred and a non-atomic replacement is used only when the filesystem does not support atomic moves. The store synchronizes operations on one instance, but does not coordinate multiple instances or processes writing the same path.
+
+The library does not yet include complete AskAI/Pyloros integration adapters, and no Maven Central artifact has been published. Review host integration, deployment permissions, and multi-instance requirements before production use.
+
+**Do not use this library in production yet.** Before release, complete host integration tests, review persistence failure semantics and multi-instance behavior, and verify compatibility with the actual ChatGPT connector flows.
 
 ## Using AnAuthentia
 
-The dependency coordinates and Java API will be documented after the first tested release. **Do not deploy this repository as an authorization service yet.**
+The dependency coordinates and complete Java API will be documented after the first tested release.
 
 ## Security
 
-This is security-sensitive code. Changes to OAuth flows, PKCE, client authentication, token storage, or redirect handling require tests and review. Please avoid posting real client secrets, authorization codes, or bearer/refresh tokens in public issues or logs.
+This is security-sensitive code. Changes to OAuth flows, PKCE, client authentication, token storage, or redirect handling require tests and review. Never post real client secrets, authorization codes, or bearer/refresh tokens in public issues or logs.
 
 ---
 
