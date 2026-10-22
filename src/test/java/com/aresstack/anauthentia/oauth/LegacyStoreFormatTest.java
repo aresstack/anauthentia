@@ -41,7 +41,7 @@ class LegacyStoreFormatTest {
         assertNull(token.getResource());
 
         store.save(loaded);
-        String rewritten = Files.readString(file, StandardCharsets.UTF_8);
+        String rewritten = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
         assertTrue(rewritten.startsWith("ANAUTHENTIA_REFRESH_TOKEN_STORE\t2"));
         assertEquals(loaded, store.load());
     }
