@@ -24,7 +24,7 @@ The name is an intentionally mischievous play on *authentia* and anarchy. The lo
 - **Framework-independent core:** no runtime dependency on Vert.x, Spring, Swing, or a specific Java HTTP server.
 - **Java 8 baseline:** usable from AskAI while remaining compatible with Pyloros on Java 21.
 - **OAuth 2.0 authorization flows:** authorization codes, PKCE S256, client-secret validation, bearer access tokens, refresh tokens, and optional refresh-token rotation.
-- **Security by default:** PKCE S256, exact redirect URI allow-lists, one-time authorization-code consumption, bounded token lifetimes, serialized token state transitions, and no credentials or tokens in logs. Hosts may explicitly inject redirect policies or enable missing-PKCE compatibility when an existing protocol integration requires it.
+- **Security by default:** PKCE S256, exact redirect URI allow-lists, one-time authorization-code consumption, bounded token lifetimes, serialized token state transitions, and no credentials or tokens in logs. Hosts may explicitly inject redirect policies or enable missing/legacy plain-PKCE compatibility when an existing protocol integration requires it.
 - **Replaceable persistence and time:** interfaces for refresh-token persistence and injectable clocks for deterministic tests.
 - **Thorough tests:** concurrent code exchange, replay, expiry, rotation, invalid credentials, and refresh-token restoration through a host-provided store.
 

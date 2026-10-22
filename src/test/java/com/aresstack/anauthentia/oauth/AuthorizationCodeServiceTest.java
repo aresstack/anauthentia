@@ -93,10 +93,43 @@ class AuthorizationCodeServiceTest {
 
         String location = service.authorize(
                 "code", CLIENT_ID, chatGptRedirectUri, "state", "mcp", null, null);
-        String code = location.substring(location.indexOf("code=") + "code=".length());
-        code = code.substring(0, code.indexOf('&') < 0 ? code.length() : code.indexOf('&'));
+        String code = extractCode(location);
 
         assertTrue(service.exchange(code, CLIENT_ID, chatGptRedirectUri, null).isPresent());
+    }
+
+    @Test
+    void supportsLegacyPlainPkceOnlyWhenCompatibilityIsExplicitlyEnabled() {
+        Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+        AuthorizationCodeService service = createCompatibilityService(clock);
+
+        String location = service.authorize(
+                "code", CLIENT_ID, REDIRECT_URI, "state", "mcp", CHALLENGE, "plain");
+
+        assertTrue(service.exchange(extractCode(location), CLIENT_ID, REDIRECT_URI, CHALLENGE).isPresent());
+    }
+
+    private static String extractCode(String location) {
+        String query = location.substring(location.indexOf('?') + 1);
+        for (String parameter : query.split("&")) {
+            if (parameter.startsWith("code=")) {
+                return parameter.substring("code=".length());
+            }
+        }
+        throw new AssertionError("Authorization code was not present in redirect URI");
+    }
+
+    private static AuthorizationCodeService createCompatibilityService(Clock clock) {
+        InMemoryOAuthClientRegistry clients = new InMemoryOAuthClientRegistry();
+        clients.register(new OAuthClient(CLIENT_ID, Collections.singleton(REDIRECT_URI)));
+        return new AuthorizationCodeService(
+                new InMemoryAuthorizationCodeStore(),
+                clients,
+                new SecureRandom(),
+                clock,
+                Duration.ofSeconds(60),
+                true,
+                OAuthClient::allowsRedirectUri);
     }
 
     @Test

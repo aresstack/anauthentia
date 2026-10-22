@@ -92,7 +92,7 @@ public final class AuthorizationCodeService {
             throw new OAuthException(400, "invalid_request", "Unsupported redirect_uri");
         }
 
-        String code = issue(clientId, redirectUri, normalizeScope(scope), codeChallenge);
+        String code = issue(clientId, redirectUri, normalizeScope(scope), codeChallenge, codeChallengeMethod);
         return appendQuery(redirectUri, code, state);
     }
 
@@ -108,8 +108,18 @@ public final class AuthorizationCodeService {
      * Issue an opaque, short-lived authorization code with an explicit scope.
      */
     public String issue(String clientId, String redirectUri, String scope, String codeChallenge) {
-        if (!isValidCodeChallenge(codeChallenge)) {
-            throw new IllegalArgumentException("codeChallenge must be a valid S256 challenge");
+        return issue(clientId, redirectUri, scope, codeChallenge,
+                isBlank(codeChallenge) ? null : "S256");
+    }
+
+    private String issue(
+            String clientId,
+            String redirectUri,
+            String scope,
+            String codeChallenge,
+            String codeChallengeMethod) {
+        if (!isValidPkceRequest(codeChallenge, codeChallengeMethod)) {
+            throw new IllegalArgumentException("Invalid PKCE parameters");
         }
         OAuthClient client = clientRegistry.findByClientId(clientId)
                 .orElseThrow(() -> new IllegalArgumentException("Client is not registered"));
@@ -122,6 +132,7 @@ public final class AuthorizationCodeService {
                 redirectUri,
                 normalizeScope(scope),
                 codeChallenge,
+                codeChallengeMethod,
                 clock.instant().plus(codeLifetime));
 
         for (int attempt = 0; attempt < 5; attempt++) {
@@ -160,7 +171,7 @@ public final class AuthorizationCodeService {
         if (client == null || !redirectUriPolicy.allows(client, redirectUri)) {
             return Optional.empty();
         }
-        if (!isValidPkceExchange(codeVerifier, stored.getCodeChallenge())) {
+        if (!isValidPkceExchange(codeVerifier, stored.getCodeChallenge(), stored.getCodeChallengeMethod())) {
             return Optional.empty();
         }
         return Optional.of(new AuthorizationGrant(stored.getClientId(), stored.getRedirectUri(), stored.getScope()));
@@ -211,18 +222,22 @@ public final class AuthorizationCodeService {
         if (isBlank(challenge)) {
             return allowMissingPkce;
         }
-        return "S256".equals(method) && isValidChallenge(challenge);
+        if ("S256".equals(method)) {
+            return isValidChallenge(challenge);
+        }
+        return allowMissingPkce && (isBlank(method) || "plain".equals(method));
     }
 
-    private boolean isValidCodeChallenge(String challenge) {
-        return isBlank(challenge) ? allowMissingPkce : isValidChallenge(challenge);
-    }
-
-    private boolean isValidPkceExchange(String verifier, String challenge) {
+    private boolean isValidPkceExchange(String verifier, String challenge, String method) {
         if (isBlank(challenge)) {
             return allowMissingPkce;
         }
-        return PkceS256.matches(verifier, challenge);
+        if ("S256".equals(method)) {
+            return PkceS256.matches(verifier, challenge);
+        }
+        return allowMissingPkce
+                && (isBlank(method) || "plain".equals(method))
+                && Objects.equals(verifier, challenge);
     }
 
     private static boolean isValidChallenge(String challenge) {
