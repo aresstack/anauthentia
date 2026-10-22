@@ -1,6 +1,6 @@
 <div align="center">
 
-![AnAuthentia — Trust nobody. Verify everything.](assets/anauthentia-banner.png)
+![AnAuthentia banner - Trust nobody. Verify everything.](assets/anauthentia-banner.png)
 
 # AnAuthentia
 
@@ -10,11 +10,11 @@
 
 </div>
 
-> **Status: project bootstrap.** The reusable library and its public API are under development. No production-ready implementation or Maven Central artifact is published yet.
+> **Status: early development.** The core authorization-code and token lifecycle APIs are implemented and tested. No production-ready release or Maven Central artifact is published yet.
 
 ## Why AnAuthentia?
 
-AskAI and Pyloros currently maintain separate OAuth implementations with overlapping responsibilities. **AnAuthentia** will extract the common, security-sensitive logic into one tested library, so both applications can share it without coupling their HTTP stacks.
+AskAI and Pyloros currently maintain separate OAuth implementations with overlapping responsibilities. **AnAuthentia** extracts common, security-sensitive logic into one tested library, so both applications can share it without coupling their HTTP stacks.
 
 The name is an intentionally mischievous play on *authentia* and anarchy. The logo is rebellious; the security model is not.
 
@@ -23,10 +23,10 @@ The name is an intentionally mischievous play on *authentia* and anarchy. The lo
 - **Library first:** no standalone HTTP server or centrally hosted identity provider.
 - **Framework-independent core:** no runtime dependency on Vert.x, Spring, Swing, or a specific Java HTTP server.
 - **Java 8 baseline:** usable from AskAI while remaining compatible with Pyloros on Java 21.
-- **OAuth 2.0 authorization flows:** authorization codes, PKCE S256, client credentials validation, bearer tokens, and refresh-token lifecycle.
-- **Security by default:** explicit redirect URI validation, fail-closed behavior, bounded token lifetimes, safe concurrency, and no credentials or tokens in logs.
-- **Replaceable persistence and time:** interfaces for token storage, clocks, and other infrastructure that need deterministic tests.
-- **Thorough tests:** concurrent requests, replay, expiry, rotation, invalid credentials, restart/persistence, and integration behavior.
+- **OAuth 2.0 authorization flows:** authorization codes, PKCE S256, client-secret validation, bearer access tokens, refresh tokens, and optional refresh-token rotation.
+- **Security by default:** PKCE S256, exact redirect URI allow-lists, one-time authorization-code consumption, bounded token lifetimes, serialized token state transitions, and no credentials or tokens in logs. Hosts may explicitly inject redirect policies or enable missing/legacy plain-PKCE compatibility when an existing protocol integration requires it.
+- **Replaceable persistence and time:** interfaces for refresh-token persistence and injectable clocks for deterministic tests.
+- **Thorough tests:** concurrent code exchange, replay, expiry, rotation, invalid credentials, and refresh-token restoration through a host-provided store.
 
 ## Planned integration
 
@@ -35,28 +35,129 @@ The name is an intentionally mischievous play on *authentia* and anarchy. The lo
 | [AskAI](https://github.com/Miguel0888/askai-java8) | Existing Java HTTP server | 8+ |
 | [Pyloros](https://github.com/aresstack/pyloros) | Vert.x routes | 21 |
 
-Application-specific endpoints, configuration, and HTTP handling remain in those projects. The authorization logic and token lifecycle move into AnAuthentia.
+Application-specific endpoints, OAuth discovery metadata, HTTP request/response handling, and durable storage adapters remain in those projects. AnAuthentia provides reusable OAuth logic through Java APIs.
 
-## Roadmap
+## Current implementation
 
-1. Extract and review the common OAuth domain model and interfaces.
-2. Implement and test the framework-neutral core, addressing known security and concurrency risks.
-3. Integrate AskAI and Pyloros using thin adapters and preserve their public OAuth contracts.
-4. Publish a versioned Java artifact to Maven Central with API documentation and integration examples.
-5. Reconsider centralizing authentication only if a genuine shared-service use case emerges.
+The current branch contains:
+
+- PKCE S256 verification using an RFC 7636 test vector.
+- Framework-neutral authorization-code issuance and exchange, with exact redirect URI matching, client binding, scope retention, expiry, and atomic one-time consumption.
+- Client registration with exact redirect URI allow-lists and constant-time comparison for confidential-client secrets.
+- Access-token issuance and Bearer-token validation with configurable expiry.
+- Refresh-token lifecycle with configurable expiry, optional rotation, and a short replay window to tolerate identical parallel token requests.
+- A `RefreshTokenStore` abstraction with synchronized in-memory and file-backed implementations.
+- Versioned refresh-token snapshots written to a temporary file and replaced atomically when the filesystem supports it; POSIX file permissions are restricted to the owner where available.
+- Persistence-first token rotation so a failed save does not invalidate the previous refresh token, plus tests for cross-client token misuse and storage failures.
+- Tests for successful exchange, invalid client credentials, expiry, invalid PKCE, replay, rotation, concurrent code exchange, file-store round trips, corrupt-store rejection, and restoring refresh-token state after service reconstruction.
+
+## Important limitations
+
+AnAuthentia is an embeddable library, **not a standalone OAuth server**. The host application owns HTTP endpoints, protocol serialization, client configuration, OAuth discovery, and durable storage.
+
+The current implementation supports one application process at a time. Authorization codes, client registrations, access tokens, and replay caches are process-local. RefreshTokenStore currently loads and saves whole snapshots; implementing it with a database does not by itself make concurrent instances safe. Do not run multiple instances concurrently or let multiple processes write the same store. FileRefreshTokenStore preserves refresh-token state across restarts, but stores bearer-equivalent credentials without encryption. Protect the file and its parent directory. Restarting an application invalidates its access tokens and short-lived replay caches.
+
+The library does not yet include complete AskAI/Pyloros integration adapters, and no Maven Central artifact has been published. Review host integration, deployment permissions, and multi-instance requirements before production use.
+
+**Not production-ready yet.** Before a production release, test the actual host HTTP integration end to end, review authorization/consent and scope enforcement, verify persistence failure handling, and test the real connector flow. Multi-instance deployments are not supported by the current state model. Maven Central signing and publication are not configured, and no artifact has been published.
 
 ## Using AnAuthentia
 
-The dependency coordinates and Java API will be documented after the first tested release. **Do not deploy this repository as an authorization service yet.**
+After the first release is published, add the dependency:
+
+```gradle
+dependencies {
+    // Dependency-free OAuth core (flows, PKCE, stores)
+    implementation 'com.aresstack:anauthentia:0.1.0'
+    // Optional: RFC 9068 JWT access tokens (issuer, validator, JWKS),
+    // backed by Nimbus JOSE+JWT. Only hosts that need JWTs add this module.
+    implementation 'com.aresstack:anauthentia-jwt:0.1.0'
+}
+```
+
+The core module keeps its zero-runtime-dependency guarantee. JWT support
+lives in the separate `anauthentia-jwt` module so that only components
+which issue or validate JWTs pull in the Nimbus JOSE+JWT dependency.
+
+The library does not start an HTTP server. Compose its services in the host application and connect them to the host's existing authorization and token routes.
+
+```java
+Set<String> redirectUris = new HashSet<String>();
+redirectUris.add("https://chatgpt.com/connector/oauth/example");
+
+OAuthClient client = new OAuthClient("chatgpt", clientSecret, redirectUris);
+InMemoryOAuthClientRegistry clients = new InMemoryOAuthClientRegistry();
+clients.register(client);
+
+Clock clock = Clock.systemUTC();
+SecureRandom secureRandom = new SecureRandom();
+
+AuthorizationCodeService authorizationCodes = new AuthorizationCodeService(
+        new InMemoryAuthorizationCodeStore(),
+        clients,
+        secureRandom,
+        clock,
+        Duration.ofMinutes(5));
+
+OAuthTokenService tokens = new OAuthTokenService(
+        authorizationCodes,
+        clients,
+        new FileRefreshTokenStore(Paths.get("data/refresh-tokens.db")),
+        secureRandom,
+        clock,
+        Duration.ofMinutes(15),
+        Duration.ofDays(30),
+        true);
+```
+
+The host must authenticate the resource owner and complete its authorization/consent and scope-policy checks before issuing a code. The authorize method validates OAuth request parameters and redirect policy, then issues the code; it does not implement login, user consent, or application-specific authorization. The host authorization route redirects to the returned URI:
+
+```java
+String redirectUri = authorizationCodes.authorize(
+        responseType,
+        clientId,
+        requestedRedirectUri,
+        state,
+        requestedScope,
+        codeChallenge,
+        codeChallengeMethod);
+```
+
+The host token route passes validated request parameters to the library:
+
+```java
+TokenResponse response = tokens.exchangeToken(
+        clientId,
+        clientSecret,
+        grantType,
+        code,
+        refreshToken,
+        redirectUri,
+        codeVerifier);
+```
+
+The host serializes TokenResponse using its existing JSON/HTTP stack. Resolve the authenticated client and granted scopes before authorizing a protected operation:
+
+    Optional<BearerTokenPrincipal> principal = tokens.resolveBearerToken(authorizationHeader);
+    if (!principal.isPresent()) {
+        // Reject the request with HTTP 401.
+    }
+    if (!principal.get().includesScope("mcp")) {
+        // Reject the request with HTTP 403.
+    }
+
+Use tokens.checkBearerAuth(authorizationHeader) when only a validity status is needed. Map OAuthException to the host OAuth error response without exposing internal exception details.
+
+The example uses in-memory client and authorization-code stores, which do not survive restarts. The current token service supports one application process only; implementing RefreshTokenStore with a database does not make concurrent instances safe because token state and rotation remain process-local. Keep client secrets in the host secret configuration; never hard-code real credentials in source control.
 
 ## Security
 
-This is security-sensitive code. Changes to OAuth flows, PKCE, client authentication, token storage, or redirect handling require tests and review. Please avoid posting real client secrets, authorization codes, or bearer/refresh tokens in public issues or logs.
+This is security-sensitive code. Changes to OAuth flows, PKCE, client authentication, token storage, or redirect handling require tests and review. Never post real client secrets, authorization codes, or bearer/refresh tokens in public issues or logs.
 
 ---
 
 <div align="center">
 
-*Open source. Zero trust. A little anarchy in the artwork — none in the authorization rules.*
+*Open source. Zero trust. A little anarchy in the artwork; none in the authorization rules.*
 
 </div>

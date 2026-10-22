@@ -1,0 +1,78 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+group = 'com.aresstack'
+version = rootProject.version
+
+description = 'JWT access tokens (RFC 9068) for AnAuthentia, backed by Nimbus JOSE+JWT'
+
+repositories {
+    mavenCentral()
+}
+
+java {
+    withSourcesJar()
+    withJavadocJar()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    if (JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_1_9)) {
+        options.release = 8
+    } else {
+        sourceCompatibility = '1.8'
+        targetCompatibility = '1.8'
+    }
+}
+
+dependencies {
+    // Der Core bleibt dependency-frei; nur dieses Modul zieht Nimbus.
+    api rootProject
+    api 'com.nimbusds:nimbus-jose-jwt:9.40'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.11.4'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+            artifactId = 'anauthentia-jwt'
+            pom {
+                name = 'AnAuthentia JWT'
+                description = project.description
+                url = 'https://github.com/aresstack/anauthentia'
+                licenses {
+                    license {
+                        name = 'MIT License'
+                        url = 'https://opensource.org/license/mit'
+                        distribution = 'repo'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'aresstack'
+                        name = 'AresStack'
+                        url = 'https://github.com/aresstack'
+                    }
+                }
+                issueManagement {
+                    system = 'GitHub'
+                    url = 'https://github.com/aresstack/anauthentia/issues'
+                }
+                scm {
+                    connection = 'scm:git:https://github.com/aresstack/anauthentia.git'
+                    developerConnection = 'scm:git:ssh://git@github.com/aresstack/anauthentia.git'
+                    url = 'https://github.com/aresstack/anauthentia'
+                }
+            }
+        }
+    }
+}
