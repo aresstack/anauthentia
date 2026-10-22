@@ -1,6 +1,8 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
+    id 'com.gradleup.nmcp'             version '0.1.5' apply false
+    id 'com.gradleup.nmcp.aggregation' version '0.1.5' apply false
 }
 
 group = 'com.aresstack'
@@ -70,5 +72,110 @@ publishing {
                 }
             }
         }
+    }
+}
+
+// --------------------------------------------------------------------
+// Maven Central publishing (Sonatype Central Portal via nmcp)
+// --------------------------------------------------------------------
+//
+// Mirrors the setup used by aresstack/pyloros and aresstack/win-directml-java.
+//
+// Triggers:
+//   ./gradlew publishToMavenLocal -PreleaseVersion=0.1.0
+//       # install locally and inspect the generated POMs
+//   ./gradlew verifyReleasePoms -PreleaseVersion=0.1.0
+//       # fail early on POM content Maven Central would reject
+//   ./gradlew publishAggregationToCentralPortal -PreleaseVersion=0.1.0
+//       # upload both modules in one deployment (release job)
+//
+// Credentials, taken from organisation secrets by the release workflow:
+//   ORG_GRADLE_PROJECT_centralUsername              Central Portal user token
+//   ORG_GRADLE_PROJECT_centralPassword              Central Portal password token
+//   ORG_GRADLE_PROJECT_signingInMemoryKey           ASCII-armored GPG private key
+//   ORG_GRADLE_PROJECT_signingInMemoryKeyPassword   GPG passphrase
+//
+// Signing is required only for an actual Central upload of a non-SNAPSHOT
+// version, so publishToMavenLocal keeps working without any secrets.
+apply plugin: 'com.gradleup.nmcp.aggregation'
+
+// Both the root artifact (anauthentia) and the JWT module are published.
+ext.publishableProjects = [rootProject, project(':anauthentia-jwt')]
+
+configure(publishableProjects) {
+    apply plugin: 'signing'
+
+    afterEvaluate {
+        signing {
+            def signingKey = providers.gradleProperty('signingInMemoryKey').orNull
+            def signingPwd = providers.gradleProperty('signingInMemoryKeyPassword').orNull
+            required = {
+                gradle.taskGraph.allTasks.any { it.name.contains('CentralPortal') }
+                        && !version.toString().endsWith('-SNAPSHOT')
+            }
+            if (signingKey != null) {
+                useInMemoryPgpKeys(signingKey, signingPwd)
+            }
+            sign publishing.publications.mavenJava
+        }
+    }
+}
+
+nmcpAggregation {
+    publishAllProjectsProbablyBreakingProjectIsolation {
+        username = providers.gradleProperty('centralUsername')
+        password = providers.gradleProperty('centralPassword')
+        // AUTOMATIC = released as soon as Central Portal validation passes.
+        // Use 'USER_MANAGED' to stop for a manual check in the Portal UI.
+        publishingType = 'AUTOMATIC'
+    }
+}
+
+// --------------------------------------------------------------------
+// POM validation
+// --------------------------------------------------------------------
+// A Central deployment cannot be withdrawn, so the POMs are checked for
+// content that would make them unusable before anything is uploaded.
+def releasePomBadPatterns = [
+        ~/<version>unspecified<\/version>/,
+        ~/<version>latest<\/version>/,
+        ~/<version>[^<]*-SNAPSHOT<\/version>/,
+        ~/<systemPath>/,
+        ~/file:\/\//,
+        ~/\.\.\//,
+]
+
+tasks.register('verifyReleasePoms') {
+    group = 'verification'
+    description = 'Validates the generated Maven POMs for content Maven Central rejects: ' +
+            'unspecified, latest, SNAPSHOT dependencies, local paths, file:// and relative parent paths.'
+
+    dependsOn publishableProjects.collect { it.path.endsWith(':') ? 'generatePomFileForMavenJavaPublication' : it.path + ':generatePomFileForMavenJavaPublication' }
+
+    doLast {
+        def failures = []
+        publishableProjects.each { prj ->
+            def pomFile = prj.layout.buildDirectory
+                    .file('publications/mavenJava/pom-default.xml').get().asFile
+            if (!pomFile.exists()) {
+                failures << "${prj.name}: POM not generated at ${pomFile}"
+                return
+            }
+            def pom = pomFile.text
+            releasePomBadPatterns.each { pattern ->
+                if (pom =~ pattern) {
+                    failures << "${prj.name}: POM matches forbidden pattern ${pattern}"
+                }
+            }
+            ['<name>', '<description>', '<url>', '<licenses>', '<developers>', '<scm>'].each { element ->
+                if (!pom.contains(element)) {
+                    failures << "${prj.name}: POM is missing ${element}, which Maven Central requires"
+                }
+            }
+        }
+        if (!failures.isEmpty()) {
+            throw new GradleException("verifyReleasePoms failed:\n  " + failures.join("\n  "))
+        }
+        logger.lifecycle("verifyReleasePoms: ${publishableProjects*.name} pass.")
     }
 }

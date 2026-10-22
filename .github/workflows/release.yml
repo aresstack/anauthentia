@@ -1,0 +1,74 @@
+name: Release to Maven Central
+
+# Mirrors aresstack/pyloros and aresstack/win-directml-java: a tag push of the
+# form v<x.y.z> builds, validates, signs and uploads both modules to the
+# Sonatype Central Portal in a single deployment. workflow_dispatch exists for
+# a deliberate manual release of the same version.
+#
+# A Central Portal release cannot be withdrawn, so the job runs the tests and
+# the POM validation before the upload rather than trusting the branch CI.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version without leading v, e.g. 0.1.0'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Configure Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Derive release version
+        id: ver
+        shell: bash
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Reject a SNAPSHOT version
+        shell: bash
+        run: |
+          case "${{ steps.ver.outputs.version }}" in
+            *-SNAPSHOT) echo "Maven Central does not accept SNAPSHOT releases"; exit 1 ;;
+          esac
+
+      - name: Build, test and validate the POMs
+        run: |
+          ./gradlew --no-daemon \
+            -PreleaseVersion=${{ steps.ver.outputs.version }} \
+            build verifyReleasePoms
+
+      - name: Sign and publish to Sonatype Central Portal
+        env:
+          ORG_GRADLE_PROJECT_centralUsername: ${{ secrets.CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_centralPassword: ${{ secrets.CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_PRIVATE_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          ./gradlew --no-daemon \
+            -PreleaseVersion=${{ steps.ver.outputs.version }} \
+            publishAggregationToCentralPortal
