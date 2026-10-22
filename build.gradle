@@ -179,3 +179,23 @@ tasks.register('verifyReleasePoms') {
         logger.lifecycle("verifyReleasePoms: ${publishableProjects*.name} pass.")
     }
 }
+
+// --------------------------------------------------------------------
+// Java 8 baseline verification
+// --------------------------------------------------------------------
+// Bytecode is always produced for Java 8 (options.release = 8 above). To also
+// prove the library *runs* on Java 8, CI executes the tests on a Java 8
+// toolchain while Gradle itself keeps running on 21 — the publishing plugins
+// require a JVM 17+ build runtime, so Java 8 cannot be the build JVM.
+//
+//   ./gradlew build -PtestJavaVersion=8
+def requestedTestJava = providers.gradleProperty('testJavaVersion').getOrNull()
+if (requestedTestJava != null) {
+    configure([rootProject, project(':anauthentia-jwt')]) {
+        tasks.withType(Test).configureEach {
+            javaLauncher = javaToolchains.launcherFor {
+                languageVersion = JavaLanguageVersion.of(requestedTestJava as int)
+            }
+        }
+    }
+}
