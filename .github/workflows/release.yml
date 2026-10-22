@@ -71,4 +71,4 @@ jobs:
         run: |
           ./gradlew --no-daemon \
             -PreleaseVersion=${{ steps.ver.outputs.version }} \
-            publishAggregationToCentralPortal
+            publishAllPublicationsToCentralPortal

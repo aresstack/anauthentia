@@ -86,8 +86,11 @@ publishing {
 //       # install locally and inspect the generated POMs
 //   ./gradlew verifyReleasePoms -PreleaseVersion=0.1.0
 //       # fail early on POM content Maven Central would reject
-//   ./gradlew publishAggregationToCentralPortal -PreleaseVersion=0.1.0
-//       # upload both modules in one deployment (release job)
+//   ./gradlew publishAllPublicationsToCentralPortal -PreleaseVersion=0.1.0
+//       # upload both modules in one deployment (release job). Note this is
+//       # the task that reads the nmcpAggregation credentials below;
+//       # publishAggregationToCentralPortal looks them up elsewhere and fails
+//       # with "Ncmp: username is missing".
 //
 // Credentials, taken from organisation secrets by the release workflow:
 //   ORG_GRADLE_PROJECT_centralUsername              Central Portal user token
