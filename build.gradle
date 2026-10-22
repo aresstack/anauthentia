@@ -19,7 +19,12 @@ java {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
-    options.release = 8
+    if (JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_1_9)) {
+        options.release = 8
+    } else {
+        sourceCompatibility = '1.8'
+        targetCompatibility = '1.8'
+    }
 }
 
 dependencies {

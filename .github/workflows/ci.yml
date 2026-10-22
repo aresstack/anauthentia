@@ -11,19 +11,21 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        java-version: ['8', '21']
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Install Java 21
+      - name: Install Java ${{ matrix.java-version }}
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
-      - name: Install Gradle
+          java-version: ${{ matrix.java-version }}
+      - name: Configure Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.14.3'
-      - name: Build and test with Java 8 release API
-        run: gradle --no-daemon clean build
+      - name: Build and test
+        run: ./gradlew --no-daemon clean build
       - name: Verify local Maven artifact generation
-        run: gradle --no-daemon publishToMavenLocal
+        run: ./gradlew --no-daemon publishToMavenLocal
