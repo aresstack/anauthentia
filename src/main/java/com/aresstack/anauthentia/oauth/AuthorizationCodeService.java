@@ -16,7 +16,7 @@ import java.util.Optional;
  * Framework-neutral authorization-code issuance and validation.
  *
  * <p>Require PKCE S256 and exact redirect URI matching by default. Hosts may
- * explicitly enable missing-PKCE compatibility and supply a redirect policy.
+ * explicitly enable missing or legacy plain-PKCE compatibility and supply a redirect policy.
  * Consume a code atomically before validating the exchange so no invalid attempt
  * can make the same code available for replay. This class deliberately does not
  * create access tokens or handle HTTP requests.
@@ -31,7 +31,7 @@ public final class AuthorizationCodeService {
     private final SecureRandom secureRandom;
     private final Clock clock;
     private final Duration codeLifetime;
-    private final boolean allowMissingPkce;
+    private final boolean allowLegacyPkce;
     private final RedirectUriPolicy redirectUriPolicy;
 
     public AuthorizationCodeService(
@@ -49,14 +49,14 @@ public final class AuthorizationCodeService {
             SecureRandom secureRandom,
             Clock clock,
             Duration codeLifetime,
-            boolean allowMissingPkce,
+            boolean allowLegacyPkce,
             RedirectUriPolicy redirectUriPolicy) {
         this.store = Objects.requireNonNull(store, "store");
         this.clientRegistry = Objects.requireNonNull(clientRegistry, "clientRegistry");
         this.secureRandom = Objects.requireNonNull(secureRandom, "secureRandom");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.codeLifetime = requirePositiveLifetime(codeLifetime);
-        this.allowMissingPkce = allowMissingPkce;
+        this.allowLegacyPkce = allowLegacyPkce;
         this.redirectUriPolicy = Objects.requireNonNull(redirectUriPolicy, "redirectUriPolicy");
     }
 
@@ -220,22 +220,22 @@ public final class AuthorizationCodeService {
 
     private boolean isValidPkceRequest(String challenge, String method) {
         if (isBlank(challenge)) {
-            return allowMissingPkce;
+            return allowLegacyPkce;
         }
         if ("S256".equals(method)) {
             return isValidChallenge(challenge);
         }
-        return allowMissingPkce && (isBlank(method) || "plain".equals(method));
+        return allowLegacyPkce && (isBlank(method) || "plain".equals(method));
     }
 
     private boolean isValidPkceExchange(String verifier, String challenge, String method) {
         if (isBlank(challenge)) {
-            return allowMissingPkce;
+            return allowLegacyPkce;
         }
         if ("S256".equals(method)) {
             return PkceS256.matches(verifier, challenge);
         }
-        return allowMissingPkce
+        return allowLegacyPkce
                 && (isBlank(method) || "plain".equals(method))
                 && Objects.equals(verifier, challenge);
     }
