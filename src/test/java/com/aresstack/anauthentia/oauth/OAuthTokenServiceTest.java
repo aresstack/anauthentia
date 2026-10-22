@@ -136,6 +136,63 @@ class OAuthTokenServiceTest {
                 fixture.tokens.checkBearerAuth("Bearer fixed-access-token"));
     }
 
+    @Test
+    void resolvesClientIdentityAndGrantedScopeForValidBearerToken() {
+        Fixture fixture = createFixture(Clock.fixed(NOW, ZoneOffset.UTC), true);
+        String code = fixture.authorizationCodes.issue(CLIENT_ID, REDIRECT_URI, "mcp read", CHALLENGE);
+        TokenResponse response = fixture.tokens.exchangeAuthorizationCode(
+                CLIENT_ID, CLIENT_SECRET, code, REDIRECT_URI, VERIFIER);
+
+        java.util.Optional<BearerTokenPrincipal> principal =
+                fixture.tokens.resolveBearerToken("Bearer " + response.getAccessToken());
+
+        assertTrue(principal.isPresent());
+        assertEquals(CLIENT_ID, principal.get().getClientId());
+        assertEquals("mcp read", principal.get().getScope());
+        assertEquals(NOW.plusSeconds(900), principal.get().getExpiresAt());
+        assertTrue(principal.get().includesScope("mcp"));
+        assertTrue(principal.get().includesScope("read"));
+        assertTrue(!principal.get().includesScope("admin"));
+        assertTrue(!principal.get().includesScope("mcp read"));
+    }
+
+    @Test
+    void doesNotResolveUnknownOrExpiredBearerTokens() {
+        Fixture fixture = createFixture(Clock.fixed(NOW, ZoneOffset.UTC), true);
+
+        assertTrue(!fixture.tokens.resolveBearerToken("Bearer unknown-token").isPresent());
+        assertTrue(!fixture.tokens.resolveBearerToken("Basic unknown-token").isPresent());
+    }
+    @Test
+    void supportsPublicClientsWithoutClientSecretsWhenPkceIsUsed() {
+        Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+        InMemoryOAuthClientRegistry clients = new InMemoryOAuthClientRegistry();
+        clients.register(new OAuthClient(CLIENT_ID, Collections.singleton(REDIRECT_URI)));
+        AuthorizationCodeService codes = new AuthorizationCodeService(
+                new InMemoryAuthorizationCodeStore(), clients, new SecureRandom(), clock, Duration.ofMinutes(5));
+        OAuthTokenService tokens = new OAuthTokenService(
+                codes, clients, new InMemoryRefreshTokenStore(), new SecureRandom(), clock,
+                Duration.ofSeconds(900), Duration.ofDays(30), true);
+
+        String code = codes.issue(CLIENT_ID, REDIRECT_URI, CHALLENGE);
+        TokenResponse response = tokens.exchangeAuthorizationCode(
+                CLIENT_ID, null, code, REDIRECT_URI, VERIFIER);
+
+        assertEquals(BearerAuthResult.OK, tokens.checkBearerAuth("Bearer " + response.getAccessToken()));
+        assertThrows(OAuthException.class, () ->
+                tokens.exchangeAuthorizationCode(CLIENT_ID, "unexpected-secret",
+                        codes.issue(CLIENT_ID, REDIRECT_URI, CHALLENGE), REDIRECT_URI, VERIFIER));
+    }
+
+    @Test
+    void rejectsMalformedAccessTokenGeneratorOutput() {
+        Fixture fixture = createFixture(
+                Clock.fixed(NOW, ZoneOffset.UTC), true, () -> "invalid token value");
+
+        assertThrows(IllegalStateException.class, () ->
+                fixture.tokens.exchangeAuthorizationCode(
+                        CLIENT_ID, CLIENT_SECRET, fixture.issueCode(), REDIRECT_URI, VERIFIER));
+    }
     private static Fixture createFixture(Clock clock, boolean rotateRefreshTokens) {
         return createFixture(clock, rotateRefreshTokens, null);
     }
@@ -202,5 +259,29 @@ class OAuthTokenServiceTest {
         public Instant instant() {
             return instant.get();
         }
+    }
+    @Test
+    void acceptsCaseInsensitiveBearerScheme() {
+        Fixture fixture = createFixture(Clock.fixed(NOW, ZoneOffset.UTC), true);
+        TokenResponse response = fixture.tokens.exchangeAuthorizationCode(
+                CLIENT_ID, CLIENT_SECRET, fixture.issueCode(), REDIRECT_URI, VERIFIER);
+
+        assertEquals(BearerAuthResult.OK,
+                fixture.tokens.checkBearerAuth("bearer " + response.getAccessToken()));
+    }
+
+    @Test
+    void rejectsDuplicateAccessTokenGeneratorValuesWithoutOverwritingExistingToken() {
+        Fixture fixture = createFixture(
+                Clock.fixed(NOW, ZoneOffset.UTC), true, () -> "fixed-access-token");
+        TokenResponse first = fixture.tokens.exchangeAuthorizationCode(
+                CLIENT_ID, CLIENT_SECRET, fixture.issueCode(), REDIRECT_URI, VERIFIER);
+
+        assertThrows(IllegalStateException.class, () ->
+                fixture.tokens.exchangeAuthorizationCode(
+                        CLIENT_ID, CLIENT_SECRET, fixture.issueCode(), REDIRECT_URI, VERIFIER));
+
+        assertEquals(BearerAuthResult.OK,
+                fixture.tokens.checkBearerAuth("Bearer " + first.getAccessToken()));
     }
 }

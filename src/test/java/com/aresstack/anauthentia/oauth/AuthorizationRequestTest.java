@@ -69,4 +69,38 @@ class AuthorizationRequestTest {
 
         assertTrue("invalid_request".equals(exception.getError()));
     }
+    @Test
+    void preservesExplicitlyEmptyState() {
+        InMemoryOAuthClientRegistry clients = new InMemoryOAuthClientRegistry();
+        clients.register(new OAuthClient(CLIENT_ID, Collections.singleton(REDIRECT_URI)));
+        AuthorizationCodeService service = new AuthorizationCodeService(
+                new InMemoryAuthorizationCodeStore(),
+                clients,
+                new SecureRandom(),
+                Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC),
+                Duration.ofMinutes(5));
+
+        String location = service.authorize(
+                "code", CLIENT_ID, REDIRECT_URI, "", "mcp", CHALLENGE, "S256");
+
+        assertTrue(location.contains("&state="));
+    }
+
+    @Test
+    void rejectsInvalidScopeSyntax() {
+        InMemoryOAuthClientRegistry clients = new InMemoryOAuthClientRegistry();
+        clients.register(new OAuthClient(CLIENT_ID, Collections.singleton(REDIRECT_URI)));
+        AuthorizationCodeService service = new AuthorizationCodeService(
+                new InMemoryAuthorizationCodeStore(),
+                clients,
+                new SecureRandom(),
+                Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC),
+                Duration.ofMinutes(5));
+
+        OAuthException exception = org.junit.jupiter.api.Assertions.assertThrows(
+                OAuthException.class,
+                () -> service.authorize(
+                        "code", CLIENT_ID, REDIRECT_URI, "state", "mcp admin" + (char) 10, CHALLENGE, "S256"));
+        assertTrue("invalid_scope".equals(exception.getError()));
+    }
 }

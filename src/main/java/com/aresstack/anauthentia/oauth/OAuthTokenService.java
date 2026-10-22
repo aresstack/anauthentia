@@ -24,6 +24,7 @@ import java.util.Optional;
 public final class OAuthTokenService {
 
     private static final Duration REPLAY_WINDOW = Duration.ofSeconds(10);
+    private static final Duration ACCESS_TOKEN_CLEANUP_INTERVAL = Duration.ofMinutes(1);
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final AuthorizationCodeService authorizationCodeService;
@@ -36,11 +37,13 @@ public final class OAuthTokenService {
     private final boolean refreshTokenRotationEnabled;
     private final AccessTokenGenerator accessTokenGenerator;
     private final Map<String, AccessTokenState> accessTokens = new HashMap<String, AccessTokenState>();
+    private Instant nextAccessTokenCleanup = Instant.MIN;
     private final Map<String, RefreshToken> refreshTokens = new HashMap<String, RefreshToken>();
     private final Map<String, AuthorizationReplay> authorizationReplayCache =
             new HashMap<String, AuthorizationReplay>();
     private final Map<String, RefreshReplay> refreshReplayCache = new HashMap<String, RefreshReplay>();
 
+    /** Create a token service using cryptographically random opaque access tokens. */
     public OAuthTokenService(
             AuthorizationCodeService authorizationCodeService,
             OAuthClientRegistry clientRegistry,
@@ -54,6 +57,7 @@ public final class OAuthTokenService {
                 accessTokenLifetime, refreshTokenLifetime, refreshTokenRotationEnabled, null);
     }
 
+    /** Create a token service with an optional host-supplied access-token generator. */
     public OAuthTokenService(
             AuthorizationCodeService authorizationCodeService,
             OAuthClientRegistry clientRegistry,
@@ -109,6 +113,7 @@ public final class OAuthTokenService {
             String codeVerifier) {
         authenticateClient(clientId, clientSecret);
         cleanupReplayCaches();
+        cleanupExpiredAccessTokens();
 
         AuthorizationReplay replay = authorizationReplayCache.get(code);
         if (replay != null) {
@@ -134,7 +139,7 @@ public final class OAuthTokenService {
                 clientId, grant.get().getScope(), now.plus(refreshTokenLifetime)));
         replaceRefreshTokens(nextRefreshTokens);
 
-        accessTokens.put(accessToken, new AccessTokenState(grant.get().getScope(), now.plus(accessTokenLifetime)));
+        accessTokens.put(accessToken, new AccessTokenState(clientId, grant.get().getScope(), now.plus(accessTokenLifetime)));
         TokenResponse response = new TokenResponse(
                 accessToken, "Bearer", expiresIn, refreshToken, grant.get().getScope());
         authorizationReplayCache.put(code, new AuthorizationReplay(
@@ -151,6 +156,8 @@ public final class OAuthTokenService {
             String refreshToken) {
         authenticateClient(clientId, clientSecret);
         cleanupReplayCaches();
+        cleanupExpiredAccessTokens();
+        removeExpiredRefreshTokens();
         if (isBlank(refreshToken)) {
             throw new OAuthException(400, "invalid_grant");
         }
@@ -185,7 +192,7 @@ public final class OAuthTokenService {
             replaceRefreshTokens(nextRefreshTokens);
         }
 
-        accessTokens.put(accessToken, new AccessTokenState(state.getScope(), now.plus(accessTokenLifetime)));
+        accessTokens.put(accessToken, new AccessTokenState(clientId, state.getScope(), now.plus(accessTokenLifetime)));
         TokenResponse response = new TokenResponse(
                 accessToken, "Bearer", toSeconds(accessTokenLifetime), nextRefreshToken, state.getScope());
         if (refreshTokenRotationEnabled) {
@@ -199,25 +206,42 @@ public final class OAuthTokenService {
      * Validate an Authorization header without exposing token state.
      */
     public synchronized BearerAuthResult checkBearerAuth(String authorizationHeader) {
-        if (authorizationHeader == null || !authorizationHeader.startsWith(BEARER_PREFIX)) {
-            return BearerAuthResult.MISSING_TOKEN;
-        }
-        String token = authorizationHeader.substring(BEARER_PREFIX.length()).trim();
-        if (isBlank(token)) {
+        String token = extractBearerToken(authorizationHeader);
+        if (token == null) {
             return BearerAuthResult.MISSING_TOKEN;
         }
 
         AccessTokenState state = accessTokens.get(token);
         if (state == null) {
+            cleanupExpiredAccessTokens();
             return BearerAuthResult.INVALID_TOKEN;
         }
         if (!state.expiresAt.isAfter(clock.instant())) {
             accessTokens.remove(token);
+            cleanupExpiredAccessTokens();
             return BearerAuthResult.EXPIRED_TOKEN;
         }
+        cleanupExpiredAccessTokens();
         return BearerAuthResult.OK;
     }
 
+    /**
+     * Resolve the authenticated client and granted scopes for a valid bearer token.
+     */
+    public synchronized Optional<BearerTokenPrincipal> resolveBearerToken(String authorizationHeader) {
+        if (checkBearerAuth(authorizationHeader) != BearerAuthResult.OK) {
+            return Optional.empty();
+        }
+
+        String token = extractBearerToken(authorizationHeader);
+        AccessTokenState state = accessTokens.get(token);
+        if (state == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new BearerTokenPrincipal(state.clientId, state.scope, state.expiresAt));
+    }
+
+    /** Return whether the supplied bearer token is valid and unexpired. */
     public synchronized boolean isBearerAuthorized(String authorizationHeader) {
         return checkBearerAuth(authorizationHeader) == BearerAuthResult.OK;
     }
@@ -258,6 +282,20 @@ public final class OAuthTokenService {
         refreshTokens.putAll(snapshot);
     }
 
+    private void cleanupExpiredAccessTokens() {
+        Instant now = clock.instant();
+        if (now.isBefore(nextAccessTokenCleanup)) {
+            return;
+        }
+
+        Iterator<Map.Entry<String, AccessTokenState>> iterator = accessTokens.entrySet().iterator();
+        while (iterator.hasNext()) {
+            if (!iterator.next().getValue().expiresAt.isAfter(now)) {
+                iterator.remove();
+            }
+        }
+        nextAccessTokenCleanup = now.plus(ACCESS_TOKEN_CLEANUP_INTERVAL);
+    }
     private void cleanupReplayCaches() {
         Instant now = clock.instant();
         removeExpiredEntries(authorizationReplayCache, now);
@@ -275,10 +313,58 @@ public final class OAuthTokenService {
 
     private String generateAccessToken() {
         String accessToken = accessTokenGenerator.generate();
-        if (isBlank(accessToken)) {
-            throw new IllegalStateException("Access-token generator returned a blank value");
+        if (!isValidBearerTokenValue(accessToken)) {
+            throw new IllegalStateException("Access-token generator returned an invalid bearer-token value");
+        }
+        if (accessTokens.containsKey(accessToken)) {
+            throw new IllegalStateException("Access-token generator returned a duplicate value");
         }
         return accessToken;
+    }
+
+    private static boolean isValidBearerTokenValue(String token) {
+        if (isBlank(token)) {
+            return false;
+        }
+        boolean paddingStarted = false;
+        boolean tokenCharacterSeen = false;
+        for (int index = 0; index < token.length(); index++) {
+            char character = token.charAt(index);
+            if (character == '=') {
+                if (!tokenCharacterSeen) {
+                    return false;
+                }
+                paddingStarted = true;
+            } else if (isBearerTokenCharacter(character) && !paddingStarted) {
+                tokenCharacterSeen = true;
+            } else {
+                return false;
+            }
+        }
+        return tokenCharacterSeen;
+    }
+
+    private static boolean isBearerTokenCharacter(char character) {
+        return (character >= 'a' && character <= 'z')
+                || (character >= 'A' && character <= 'Z')
+                || (character >= '0' && character <= '9')
+                || character == '-'
+                || character == '.'
+                || character == '_'
+                || character == '~'
+                || character == '+'
+                || character == '/';
+    }
+
+    private static String extractBearerToken(String authorizationHeader) {
+        if (authorizationHeader == null
+                || authorizationHeader.length() <= BEARER_PREFIX.length()
+                || !authorizationHeader.regionMatches(true, 0, "Bearer", 0, "Bearer".length())
+                || authorizationHeader.charAt("Bearer".length()) != ' ') {
+            return null;
+        }
+        String token = authorizationHeader.substring(BEARER_PREFIX.length()).trim();
+        return isBlank(token) ? null : token;
     }
 
     private String createOpaqueValue() {
@@ -306,10 +392,12 @@ public final class OAuthTokenService {
     }
 
     private static final class AccessTokenState {
+        private final String clientId;
         private final String scope;
         private final Instant expiresAt;
 
-        private AccessTokenState(String scope, Instant expiresAt) {
+        private AccessTokenState(String clientId, String scope, Instant expiresAt) {
+            this.clientId = clientId;
             this.scope = scope;
             this.expiresAt = expiresAt;
         }

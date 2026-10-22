@@ -1,6 +1,6 @@
 <div align="center">
 
-![AnAuthentia — Trust nobody. Verify everything.](assets/anauthentia-banner.png)
+![AnAuthentia banner - Trust nobody. Verify everything.](assets/anauthentia-banner.png)
 
 # AnAuthentia
 
@@ -55,11 +55,11 @@ The current branch contains:
 
 AnAuthentia is an embeddable library, **not a standalone OAuth server**. The host application owns HTTP endpoints, protocol serialization, client configuration, OAuth discovery, and durable storage.
 
-The in-memory authorization-code and client-registry implementations do not survive restarts or coordinate multiple instances. `FileRefreshTokenStore` preserves refresh-token state across restarts, but stores bearer-equivalent credentials without encryption and does not coordinate multiple processes writing the same path. Protect the file and parent directory. Access tokens and short replay caches are intentionally process-local, so restarting an application invalidates its access tokens.
+The current implementation supports one application process at a time. Authorization codes, client registrations, access tokens, and replay caches are process-local. RefreshTokenStore currently loads and saves whole snapshots; implementing it with a database does not by itself make concurrent instances safe. Do not run multiple instances concurrently or let multiple processes write the same store. FileRefreshTokenStore preserves refresh-token state across restarts, but stores bearer-equivalent credentials without encryption. Protect the file and its parent directory. Restarting an application invalidates its access tokens and short-lived replay caches.
 
 The library does not yet include complete AskAI/Pyloros integration adapters, and no Maven Central artifact has been published. Review host integration, deployment permissions, and multi-instance requirements before production use.
 
-**Do not use this library in production yet.** Before release, complete host integration tests, review persistence failure semantics and multi-instance behavior, and verify compatibility with the actual ChatGPT connector flows.
+**Not production-ready yet.** Before a production release, test the actual host HTTP integration end to end, review authorization/consent and scope enforcement, verify persistence failure handling, and test the real connector flow. Multi-instance deployments are not supported by the current state model. Maven Central signing and publication are not configured, and no artifact has been published.
 
 ## Using AnAuthentia
 
@@ -102,7 +102,7 @@ OAuthTokenService tokens = new OAuthTokenService(
         true);
 ```
 
-The host authorization route validates the incoming request and redirects to the returned URI:
+The host must authenticate the resource owner and complete its authorization/consent and scope-policy checks before issuing a code. The authorize method validates OAuth request parameters and redirect policy, then issues the code; it does not implement login, user consent, or application-specific authorization. The host authorization route redirects to the returned URI:
 
 ```java
 String redirectUri = authorizationCodes.authorize(
@@ -128,9 +128,19 @@ TokenResponse response = tokens.exchangeToken(
         codeVerifier);
 ```
 
-The host serializes `TokenResponse` using its existing JSON/HTTP stack. Validate incoming bearer credentials with `tokens.checkBearerAuth(authorizationHeader)`. Map `OAuthException` to the host's OAuth error response without exposing internal exception details.
+The host serializes TokenResponse using its existing JSON/HTTP stack. Resolve the authenticated client and granted scopes before authorizing a protected operation:
 
-The example uses in-memory client and authorization-code stores. Replace them with host-appropriate implementations if the application runs across multiple processes or requires state to survive restarts. Keep client secrets in the host's secret configuration; never hard-code real credentials in source control.
+    Optional<BearerTokenPrincipal> principal = tokens.resolveBearerToken(authorizationHeader);
+    if (!principal.isPresent()) {
+        // Reject the request with HTTP 401.
+    }
+    if (!principal.get().includesScope("mcp")) {
+        // Reject the request with HTTP 403.
+    }
+
+Use tokens.checkBearerAuth(authorizationHeader) when only a validity status is needed. Map OAuthException to the host OAuth error response without exposing internal exception details.
+
+The example uses in-memory client and authorization-code stores, which do not survive restarts. The current token service supports one application process only; implementing RefreshTokenStore with a database does not make concurrent instances safe because token state and rotation remain process-local. Keep client secrets in the host secret configuration; never hard-code real credentials in source control.
 
 ## Security
 
@@ -140,6 +150,6 @@ This is security-sensitive code. Changes to OAuth flows, PKCE, client authentica
 
 <div align="center">
 
-*Open source. Zero trust. A little anarchy in the artwork — none in the authorization rules.*
+*Open source. Zero trust. A little anarchy in the artwork; none in the authorization rules.*
 
 </div>

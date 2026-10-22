@@ -92,7 +92,14 @@ public final class AuthorizationCodeService {
             throw new OAuthException(400, "invalid_request", "Unsupported redirect_uri");
         }
 
-        String code = issue(clientId, redirectUri, normalizeScope(scope), codeChallenge, codeChallengeMethod);
+        String normalizedScope;
+        try {
+            normalizedScope = normalizeScope(scope);
+        } catch (IllegalArgumentException exception) {
+            throw new OAuthException(400, "invalid_scope", "Invalid scope");
+        }
+
+        String code = issue(clientId, redirectUri, normalizedScope, codeChallenge, codeChallengeMethod);
         return appendQuery(redirectUri, code, state);
     }
 
@@ -192,7 +199,7 @@ public final class AuthorizationCodeService {
                 .append(separator)
                 .append("code=")
                 .append(urlEncode(code));
-        if (!isBlank(state)) {
+        if (state != null) {
             result.append("&state=").append(urlEncode(state));
         }
         return result.append(fragment).toString();
@@ -215,7 +222,35 @@ public final class AuthorizationCodeService {
     }
 
     private static String normalizeScope(String scope) {
-        return isBlank(scope) ? DEFAULT_SCOPE : scope.trim();
+        if (scope == null || scope.isEmpty()) {
+            return DEFAULT_SCOPE;
+        }
+
+        boolean previousWasSeparator = true;
+        for (int index = 0; index < scope.length(); index++) {
+            char character = scope.charAt(index);
+            if (character == ' ') {
+                if (previousWasSeparator) {
+                    throw new IllegalArgumentException("Scope contains an empty token");
+                }
+                previousWasSeparator = true;
+            } else {
+                if (!isValidScopeCharacter(character)) {
+                    throw new IllegalArgumentException("Scope contains an invalid character");
+                }
+                previousWasSeparator = false;
+            }
+        }
+        if (previousWasSeparator) {
+            throw new IllegalArgumentException("Scope contains an empty token");
+        }
+        return scope;
+    }
+
+    private static boolean isValidScopeCharacter(char character) {
+        return character == 0x21
+                || (character >= 0x23 && character <= 0x5B)
+                || (character >= 0x5D && character <= 0x7E);
     }
 
     private boolean isValidPkceRequest(String challenge, String method) {
