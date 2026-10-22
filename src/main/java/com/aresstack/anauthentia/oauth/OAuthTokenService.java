@@ -24,6 +24,7 @@ import java.util.Optional;
 public final class OAuthTokenService {
 
     private static final Duration REPLAY_WINDOW = Duration.ofSeconds(10);
+    private static final String TOKEN_DIGEST_PREFIX = "s256:";
     private static final Duration ACCESS_TOKEN_CLEANUP_INTERVAL = Duration.ofMinutes(1);
     private static final String BEARER_PREFIX = "Bearer ";
 
@@ -135,7 +136,7 @@ public final class OAuthTokenService {
         int expiresIn = toSeconds(accessTokenLifetime);
 
         Map<String, RefreshToken> nextRefreshTokens = new HashMap<String, RefreshToken>(refreshTokens);
-        nextRefreshTokens.put(refreshToken, new RefreshToken(
+        nextRefreshTokens.put(digestToken(refreshToken), new RefreshToken(
                 clientId, grant.get().getScope(), now.plus(refreshTokenLifetime)));
         replaceRefreshTokens(nextRefreshTokens);
 
@@ -162,9 +163,10 @@ public final class OAuthTokenService {
             throw new OAuthException(400, "invalid_grant");
         }
 
-        RefreshToken state = refreshTokens.get(refreshToken);
+        String refreshTokenKey = digestToken(refreshToken);
+        RefreshToken state = refreshTokens.get(refreshTokenKey);
         if (state == null) {
-            RefreshReplay replay = refreshReplayCache.get(refreshToken);
+            RefreshReplay replay = refreshReplayCache.get(refreshTokenKey);
             if (replay != null && replay.clientId.equals(clientId)) {
                 return replay.response;
             }
@@ -175,7 +177,7 @@ public final class OAuthTokenService {
         }
         if (!state.getExpiresAt().isAfter(clock.instant())) {
             Map<String, RefreshToken> nextRefreshTokens = new HashMap<String, RefreshToken>(refreshTokens);
-            nextRefreshTokens.remove(refreshToken);
+            nextRefreshTokens.remove(refreshTokenKey);
             replaceRefreshTokens(nextRefreshTokens);
             throw new OAuthException(400, "invalid_grant");
         }
@@ -186,8 +188,8 @@ public final class OAuthTokenService {
         if (refreshTokenRotationEnabled) {
             nextRefreshToken = createOpaqueValue();
             Map<String, RefreshToken> nextRefreshTokens = new HashMap<String, RefreshToken>(refreshTokens);
-            nextRefreshTokens.remove(refreshToken);
-            nextRefreshTokens.put(nextRefreshToken, new RefreshToken(
+            nextRefreshTokens.remove(refreshTokenKey);
+            nextRefreshTokens.put(digestToken(nextRefreshToken), new RefreshToken(
                     clientId, state.getScope(), now.plus(refreshTokenLifetime)));
             replaceRefreshTokens(nextRefreshTokens);
         }
@@ -196,7 +198,7 @@ public final class OAuthTokenService {
         TokenResponse response = new TokenResponse(
                 accessToken, "Bearer", toSeconds(accessTokenLifetime), nextRefreshToken, state.getScope());
         if (refreshTokenRotationEnabled) {
-            refreshReplayCache.put(refreshToken, new RefreshReplay(
+            refreshReplayCache.put(refreshTokenKey, new RefreshReplay(
                     clientId, response, now.plus(REPLAY_WINDOW)));
         }
         return response;
@@ -258,7 +260,11 @@ public final class OAuthTokenService {
         if (loaded != null) {
             for (Map.Entry<String, RefreshToken> entry : loaded.entrySet()) {
                 if (!isBlank(entry.getKey()) && entry.getValue() != null) {
-                    refreshTokens.put(entry.getKey(), entry.getValue());
+                    // Ältere Stores enthalten Klartext-Tokens; beim Laden auf
+                    // die gehashte Form migrieren (persistiert beim nächsten save).
+                    String key = entry.getKey().startsWith(TOKEN_DIGEST_PREFIX)
+                            ? entry.getKey() : digestToken(entry.getKey());
+                    refreshTokens.put(key, entry.getValue());
                 }
             }
         }
@@ -365,6 +371,21 @@ public final class OAuthTokenService {
         }
         String token = authorizationHeader.substring(BEARER_PREFIX.length()).trim();
         return isBlank(token) ? null : token;
+    }
+
+    /**
+     * Store refresh tokens only as salted-free SHA-256 digests: a leaked store
+     * file must not yield usable credentials. Tokens are 256-bit random values,
+     * so a plain digest is preimage-resistant without a salt.
+     */
+    private static String digestToken(String value) {
+        try {
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return TOKEN_DIGEST_PREFIX + Base64.getUrlEncoder().withoutPadding().encodeToString(hash);
+        } catch (java.security.NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is required by the Java platform", exception);
+        }
     }
 
     private String createOpaqueValue() {
