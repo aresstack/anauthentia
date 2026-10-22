@@ -235,6 +235,29 @@ public final class OAuthTokenService {
     }
 
     /**
+     * Revoke a refresh token (RFC 7009 semantics): the client must
+     * authenticate, revoking succeeds silently for unknown or foreign tokens
+     * so callers cannot probe token existence, and a revoked token is removed
+     * from the persistent store before this method returns.
+     */
+    public synchronized void revokeRefreshToken(
+            String clientId, String clientSecret, String refreshToken) {
+        authenticateClient(clientId, clientSecret);
+        if (isBlank(refreshToken)) {
+            return;
+        }
+        String refreshTokenKey = digestToken(refreshToken);
+        refreshReplayCache.remove(refreshTokenKey);
+        RefreshToken state = refreshTokens.get(refreshTokenKey);
+        if (state == null || !state.getClientId().equals(clientId)) {
+            return;
+        }
+        Map<String, RefreshToken> nextRefreshTokens = new HashMap<String, RefreshToken>(refreshTokens);
+        nextRefreshTokens.remove(refreshTokenKey);
+        replaceRefreshTokens(nextRefreshTokens);
+    }
+
+    /**
      * Validate an Authorization header without exposing token state.
      */
     public synchronized BearerAuthResult checkBearerAuth(String authorizationHeader) {
