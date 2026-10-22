@@ -40,6 +40,24 @@ publishing {
                 name = 'AnAuthentia'
                 description = project.description
                 url = 'https://github.com/aresstack/anauthentia'
+                licenses {
+                    license {
+                        name = 'MIT License'
+                        url = 'https://opensource.org/license/mit'
+                        distribution = 'repo'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'aresstack'
+                        name = 'AresStack'
+                        url = 'https://github.com/aresstack'
+                    }
+                }
+                issueManagement {
+                    system = 'GitHub'
+                    url = 'https://github.com/aresstack/anauthentia/issues'
+                }
                 scm {
                     connection = 'scm:git:https://github.com/aresstack/anauthentia.git'
                     developerConnection = 'scm:git:ssh://git@github.com/aresstack/anauthentia.git'

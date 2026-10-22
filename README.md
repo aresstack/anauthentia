@@ -63,7 +63,74 @@ The library does not yet include complete AskAI/Pyloros integration adapters, an
 
 ## Using AnAuthentia
 
-The dependency coordinates and complete Java API will be documented after the first tested release.
+After the first release is published, add the dependency:
+
+```gradle
+dependencies {
+    implementation 'com.aresstack:anauthentia:0.1.0'
+}
+```
+
+The library does not start an HTTP server. Compose its services in the host application and connect them to the host's existing authorization and token routes.
+
+```java
+Set<String> redirectUris = new HashSet<String>();
+redirectUris.add("https://chatgpt.com/connector/oauth/example");
+
+OAuthClient client = new OAuthClient("chatgpt", clientSecret, redirectUris);
+InMemoryOAuthClientRegistry clients = new InMemoryOAuthClientRegistry();
+clients.register(client);
+
+Clock clock = Clock.systemUTC();
+SecureRandom secureRandom = new SecureRandom();
+
+AuthorizationCodeService authorizationCodes = new AuthorizationCodeService(
+        new InMemoryAuthorizationCodeStore(),
+        clients,
+        secureRandom,
+        clock,
+        Duration.ofMinutes(5));
+
+OAuthTokenService tokens = new OAuthTokenService(
+        authorizationCodes,
+        clients,
+        new FileRefreshTokenStore(Paths.get("data/refresh-tokens.db")),
+        secureRandom,
+        clock,
+        Duration.ofMinutes(15),
+        Duration.ofDays(30),
+        true);
+```
+
+The host authorization route validates the incoming request and redirects to the returned URI:
+
+```java
+String redirectUri = authorizationCodes.authorize(
+        responseType,
+        clientId,
+        requestedRedirectUri,
+        state,
+        requestedScope,
+        codeChallenge,
+        codeChallengeMethod);
+```
+
+The host token route passes validated request parameters to the library:
+
+```java
+TokenResponse response = tokens.exchangeToken(
+        clientId,
+        clientSecret,
+        grantType,
+        code,
+        refreshToken,
+        redirectUri,
+        codeVerifier);
+```
+
+The host serializes `TokenResponse` using its existing JSON/HTTP stack. Validate incoming bearer credentials with `tokens.checkBearerAuth(authorizationHeader)`. Map `OAuthException` to the host's OAuth error response without exposing internal exception details.
+
+The example uses in-memory client and authorization-code stores. Replace them with host-appropriate implementations if the application runs across multiple processes or requires state to survive restarts. Keep client secrets in the host's secret configuration; never hard-code real credentials in source control.
 
 ## Security
 
