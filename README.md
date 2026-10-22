@@ -67,9 +67,17 @@ After the first release is published, add the dependency:
 
 ```gradle
 dependencies {
+    // Dependency-free OAuth core (flows, PKCE, stores)
     implementation 'com.aresstack:anauthentia:0.1.0'
+    // Optional: RFC 9068 JWT access tokens (issuer, validator, JWKS),
+    // backed by Nimbus JOSE+JWT. Only hosts that need JWTs add this module.
+    implementation 'com.aresstack:anauthentia-jwt:0.1.0'
 }
 ```
+
+The core module keeps its zero-runtime-dependency guarantee. JWT support
+lives in the separate `anauthentia-jwt` module so that only components
+which issue or validate JWTs pull in the Nimbus JOSE+JWT dependency.
 
 The library does not start an HTTP server. Compose its services in the host application and connect them to the host's existing authorization and token routes.
 

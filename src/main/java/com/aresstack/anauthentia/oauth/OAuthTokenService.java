@@ -36,7 +36,7 @@ public final class OAuthTokenService {
     private final Duration accessTokenLifetime;
     private final Duration refreshTokenLifetime;
     private final boolean refreshTokenRotationEnabled;
-    private final AccessTokenGenerator accessTokenGenerator;
+    private final GrantAwareAccessTokenGenerator accessTokenGenerator;
     private final Map<String, AccessTokenState> accessTokens = new HashMap<String, AccessTokenState>();
     private Instant nextAccessTokenCleanup = Instant.MIN;
     private final Map<String, RefreshToken> refreshTokens = new HashMap<String, RefreshToken>();
@@ -55,7 +55,8 @@ public final class OAuthTokenService {
             Duration refreshTokenLifetime,
             boolean refreshTokenRotationEnabled) {
         this(authorizationCodeService, clientRegistry, refreshTokenStore, secureRandom, clock,
-                accessTokenLifetime, refreshTokenLifetime, refreshTokenRotationEnabled, null);
+                accessTokenLifetime, refreshTokenLifetime, refreshTokenRotationEnabled,
+                (AccessTokenGenerator) null);
     }
 
     /** Create a token service with an optional host-supplied access-token generator. */
@@ -77,7 +78,34 @@ public final class OAuthTokenService {
         this.accessTokenLifetime = requirePositiveLifetime(accessTokenLifetime, "accessTokenLifetime");
         this.refreshTokenLifetime = requirePositiveLifetime(refreshTokenLifetime, "refreshTokenLifetime");
         this.refreshTokenRotationEnabled = refreshTokenRotationEnabled;
-        this.accessTokenGenerator = accessTokenGenerator == null ? this::createOpaqueValue : accessTokenGenerator;
+        AccessTokenGenerator plainGenerator =
+                accessTokenGenerator == null ? this::createOpaqueValue : accessTokenGenerator;
+        this.accessTokenGenerator =
+                (clientId, scope, issuedAt, expiresAt) -> plainGenerator.generate();
+        loadRefreshTokens();
+        removeExpiredRefreshTokens();
+    }
+
+    /** Create a token service whose access tokens embed grant context (e.g. signed JWTs). */
+    public OAuthTokenService(
+            AuthorizationCodeService authorizationCodeService,
+            OAuthClientRegistry clientRegistry,
+            RefreshTokenStore refreshTokenStore,
+            SecureRandom secureRandom,
+            Clock clock,
+            Duration accessTokenLifetime,
+            Duration refreshTokenLifetime,
+            boolean refreshTokenRotationEnabled,
+            GrantAwareAccessTokenGenerator accessTokenGenerator) {
+        this.authorizationCodeService = Objects.requireNonNull(authorizationCodeService, "authorizationCodeService");
+        this.clientRegistry = Objects.requireNonNull(clientRegistry, "clientRegistry");
+        this.refreshTokenStore = Objects.requireNonNull(refreshTokenStore, "refreshTokenStore");
+        this.secureRandom = Objects.requireNonNull(secureRandom, "secureRandom");
+        this.clock = Objects.requireNonNull(clock, "clock");
+        this.accessTokenLifetime = requirePositiveLifetime(accessTokenLifetime, "accessTokenLifetime");
+        this.refreshTokenLifetime = requirePositiveLifetime(refreshTokenLifetime, "refreshTokenLifetime");
+        this.refreshTokenRotationEnabled = refreshTokenRotationEnabled;
+        this.accessTokenGenerator = Objects.requireNonNull(accessTokenGenerator, "accessTokenGenerator");
         loadRefreshTokens();
         removeExpiredRefreshTokens();
     }
@@ -131,7 +159,8 @@ public final class OAuthTokenService {
         }
 
         Instant now = clock.instant();
-        String accessToken = generateAccessToken();
+        String accessToken = generateAccessToken(
+                clientId, grant.get().getScope(), now, now.plus(accessTokenLifetime));
         String refreshToken = createOpaqueValue();
         int expiresIn = toSeconds(accessTokenLifetime);
 
@@ -183,7 +212,8 @@ public final class OAuthTokenService {
         }
 
         Instant now = clock.instant();
-        String accessToken = generateAccessToken();
+        String accessToken = generateAccessToken(
+                clientId, state.getScope(), now, now.plus(accessTokenLifetime));
         String nextRefreshToken = refreshToken;
         if (refreshTokenRotationEnabled) {
             nextRefreshToken = createOpaqueValue();
@@ -317,8 +347,9 @@ public final class OAuthTokenService {
         }
     }
 
-    private String generateAccessToken() {
-        String accessToken = accessTokenGenerator.generate();
+    private String generateAccessToken(
+            String clientId, String scope, Instant issuedAt, Instant expiresAt) {
+        String accessToken = accessTokenGenerator.generate(clientId, scope, issuedAt, expiresAt);
         if (!isValidBearerTokenValue(accessToken)) {
             throw new IllegalStateException("Access-token generator returned an invalid bearer-token value");
         }
