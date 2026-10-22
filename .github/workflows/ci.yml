@@ -3,7 +3,6 @@ name: Verify AnAuthentia
 on:
   pull_request:
   push:
-    branches: [main]
 
 permissions:
   contents: read
